@@ -18,33 +18,40 @@ npm install
 npm run dev
 ```
 
-Open the printed local URL, click **Begin**, and click the canvas once you're
-in the maze to lock the mouse for looking around.
+Open the printed local URL and click **Begin**.
+
+In the maze, movement is tile-by-tile like a classic dungeon crawler
+(Wizardry, Eye of the Beholder): W/S step forward or back one tile, A/D turn
+90&deg; in place. In the box, movement is free-roaming top-down.
 
 ## Controls (rebindable in-game via the Controls poster)
 
-| Action              | Default   |
-| -------------------- | --------- |
-| Move                 | W A S D   |
-| Look around (maze)   | Mouse     |
-| Interact             | E         |
-| Drop carried item     | Q         |
-| Look into / climb out of your box | I |
-| Toggle Compass overlay | 1       |
-| Toggle Map overlay     | 2       |
+| Action                             | Default |
+| ----------------------------------- | ------- |
+| Move (box) / Step forward-back (maze) | W S   |
+| Strafe (box) / Turn left-right (maze) | A D   |
+| Interact                            | E       |
+| Drop carried item, or sort it onto an empty shelf slot | Q |
+| Look into / climb out of your box   | I       |
+| Toggle Compass overlay              | 1       |
+| Toggle Map overlay                  | 2       |
+| Mute audio                          | M       |
 
 ## What's in the box
 
-- **Shelves** holding a **Compass** (points toward the current exit) and a
-  **Map** (reveals a minimap of everywhere you've walked).
+- **Shelves** with slots to sort your things into — a **Compass** (points
+  toward the current exit) and a **Map** (reveals a minimap of everywhere
+  you've walked) start out resting there. Carry them off into the maze and
+  you'll need to put them back: stand at an empty slot and press Q.
 - A **desk** with a running ledger of your stats.
 - A **bulletin board** listing your current objectives.
 - **Posters** you can walk up to and read: How To Play, Controls, and
-  Settings (mouse sensitivity, save reset).
+  Settings (music/SFX volume, mute, save reset).
 - A **ladder** — the diegetic way back out into the maze.
 
 Both the Compass and Map can be picked up and set back down in either the
-maze or the box; whichever you're carrying shows up as a HUD overlay.
+maze or the box (only the box has the shelf slots); whichever you're
+carrying shows up as a HUD overlay.
 
 ## Project layout
 

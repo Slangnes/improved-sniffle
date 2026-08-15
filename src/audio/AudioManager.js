@@ -11,7 +11,13 @@ const BOX_PATTERN = [
 ];
 const BOX_STEP = 0.16;
 
-const PING_NOTES = ['A5', 'C6', 'E6', 'G5'];
+// Slow, sparse minor-pentatonic loop for the maze - simple repeating tune, kept quiet.
+const MAZE_PATTERN = [
+  'A3', null, null, null, 'C4', null, null, null,
+  'E4', null, null, 'D4', null, null, 'A3', null,
+  null, null, 'G3', null, null, null, 'A3', null,
+];
+const MAZE_STEP = 0.34;
 
 const STEP_INTERVAL = 0.36;
 
@@ -201,6 +207,11 @@ export class AudioManager {
     }
   }
 
+  playBump() {
+    this._noiseBurst({ duration: 0.05, gain: 0.12, filterFreq: 350, filterType: 'lowpass' });
+    this._tone({ freq: 70, type: 'triangle', duration: 0.03, gain: 0.08, filterFreq: 200 });
+  }
+
   playPickup() {
     this._tone({ freq: NOTE.A4, type: 'triangle', duration: 0.08, gain: 0.16, filterFreq: 3000, reverb: 0.15 });
     this._tone({ freq: NOTE.E5, type: 'triangle', duration: 0.12, gain: 0.14, time: (this.ctx?.currentTime ?? 0) + 0.07, filterFreq: 3500, reverb: 0.2 });
@@ -361,74 +372,51 @@ export class AudioManager {
 
   _startMazeMusic(out) {
     if (!this.ctx || !out) return () => {};
+    let step = 0;
+    let nextNoteTime = this.ctx.currentTime + 0.05;
     let stopped = false;
 
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 420;
-    filter.Q.value = 4;
-    filter.connect(out);
+    const scheduleNote = (name, time) => {
+      const freq = NOTE[name];
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
 
-    const padGain = this.ctx.createGain();
-    padGain.gain.value = 0.5;
-    padGain.connect(filter);
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1400;
 
-    const oscA = this.ctx.createOscillator();
-    oscA.type = 'sine';
-    oscA.frequency.value = NOTE.E2;
-    const oscB = this.ctx.createOscillator();
-    oscB.type = 'triangle';
-    oscB.frequency.value = NOTE.B1;
-    oscB.detune.value = 6;
+      const env = this.ctx.createGain();
+      env.gain.setValueAtTime(0, time);
+      env.gain.linearRampToValueAtTime(0.055, time + 0.04);
+      env.gain.exponentialRampToValueAtTime(0.0006, time + 0.9);
 
-    oscA.connect(padGain);
-    oscB.connect(padGain);
-    oscA.start();
-    oscB.start();
+      const send = this.ctx.createGain();
+      send.gain.value = 0.5;
 
-    const lfo = this.ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = 0.045;
-    const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 220;
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-    lfo.start();
+      osc.connect(filter);
+      filter.connect(env);
+      env.connect(out);
+      env.connect(send);
+      send.connect(this.reverbSend);
 
-    let pingTimeoutId = null;
-    const schedulePing = () => {
-      if (stopped) return;
-      const delay = 3500 + Math.random() * 6000;
-      pingTimeoutId = setTimeout(() => {
-        if (stopped || !this.ctx) return;
-        const name = PING_NOTES[Math.floor(Math.random() * PING_NOTES.length)];
-        this._tone({
-          freq: NOTE[name],
-          type: 'sine',
-          duration: 0.5,
-          gain: 0.05,
-          attack: 0.02,
-          release: 1.4,
-          filterFreq: 4000,
-          pan: Math.random() * 1.6 - 0.8,
-          reverb: 0.7,
-        });
-        schedulePing();
-      }, delay);
+      osc.start(time);
+      osc.stop(time + 1.0);
     };
-    schedulePing();
+
+    const intervalId = setInterval(() => {
+      if (stopped || !this.ctx) return;
+      while (nextNoteTime < this.ctx.currentTime + 0.15) {
+        const name = MAZE_PATTERN[step % MAZE_PATTERN.length];
+        if (name) scheduleNote(name, nextNoteTime);
+        nextNoteTime += MAZE_STEP;
+        step += 1;
+      }
+    }, 60);
 
     return () => {
       stopped = true;
-      if (pingTimeoutId) clearTimeout(pingTimeoutId);
-      const t = this.ctx.currentTime;
-      [oscA, oscB, lfo].forEach((o) => {
-        try {
-          o.stop(t + 0.05);
-        } catch (e) {
-          /* already stopped */
-        }
-      });
+      clearInterval(intervalId);
     };
   }
 }

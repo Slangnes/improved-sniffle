@@ -54,13 +54,6 @@ async function toggleBox() {
   });
 }
 
-canvas.addEventListener('click', () => {
-  if (modal.isOpen() || transition.playing) return;
-  if (current === mazeScene && document.pointerLockElement !== canvas) {
-    canvas.requestPointerLock();
-  }
-});
-
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   inventoryScene.onResize();
@@ -84,7 +77,6 @@ function frame() {
   if (clock.running && !modal.isOpen() && !transition.playing) {
     current.update(dt);
   } else {
-    input.consumeMouseDelta();
     input.endFrame();
   }
 

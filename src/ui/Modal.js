@@ -34,7 +34,6 @@ export class ModalManager {
     };
     (builders[id] || (() => this._fallback(id)))();
     this.layer.classList.remove('hidden');
-    if (document.pointerLockElement) document.exitPointerLock();
     this.audio.playModalOpen();
   }
 
@@ -57,13 +56,16 @@ export class ModalManager {
       outward, wrapping a new, bigger ring around the one you just cleared.
       Clear three rings and the whole thing folds back to the start &mdash;
       a fresh maze, ready to run again.</p>
-      <p>Pick up the Compass and Map lying on the shelves. Carry them with you,
-      drop them wherever you like, and use them to find your way.</p>
+      <p>In the maze you move one tile at a time and turn in place, like an old
+      dungeon crawler &mdash; W/S to step forward or back, A/D to turn.</p>
+      <p>Pick up the Compass and Map from the shelves. Carry them with you,
+      drop them wherever you like, and use them to find your way. When you're
+      back in the box, stand by an empty spot on the shelf and press Q to sort
+      a carried item back into its place.</p>
       <ul>
-        <li>WASD to move</li>
-        <li>Mouse to look around (in the maze)</li>
+        <li>WASD to move (step/turn in the maze, free movement in the box)</li>
         <li>E to interact with what's nearby</li>
-        <li>Q to drop a carried item</li>
+        <li>Q to drop a carried item, or sort it onto an empty shelf slot</li>
         <li>I to look into your box, or climb out of it</li>
         <li>1 / 2 to toggle the compass / map overlays</li>
         <li>M to mute all audio</li>
@@ -99,20 +101,6 @@ export class ModalManager {
   _settings() {
     const wrap = document.createElement('div');
     wrap.innerHTML = `<h2>Settings</h2>`;
-
-    const sensRow = document.createElement('div');
-    sensRow.className = 'keybind-row';
-    const sensLabel = document.createElement('span');
-    sensLabel.textContent = 'Mouse Sensitivity';
-    const sensInput = document.createElement('input');
-    sensInput.type = 'range';
-    sensInput.min = '0.2';
-    sensInput.max = '3';
-    sensInput.step = '0.1';
-    sensInput.value = String(this.input.sensitivity);
-    sensInput.addEventListener('input', () => this.input.setSensitivity(parseFloat(sensInput.value)));
-    sensRow.append(sensLabel, sensInput);
-    wrap.appendChild(sensRow);
 
     const musicRow = document.createElement('div');
     musicRow.className = 'keybind-row';

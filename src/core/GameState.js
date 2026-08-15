@@ -1,9 +1,13 @@
 const STORAGE_KEY = 'box-and-bones:save';
 
+// Must match InventoryScene's shelf slot coordinates (slots 0 and 1) so items
+// start out actually resting on the shelf.
 const DEFAULT_ITEM_HOMES = {
-  compass: { scene: 'inventory', x: -3.2, z: -1.6 },
-  map: { scene: 'inventory', x: -3.2, z: 0.6 },
+  compass: { scene: 'inventory', x: -5.47, z: -2 },
+  map: { scene: 'inventory', x: -5.47, z: -0.7 },
 };
+
+const SHELVED_ITEM_IDS = ['compass', 'map'];
 
 export class GameState {
   constructor() {
@@ -66,6 +70,9 @@ export class GameState {
   pickUp(id) {
     this.carried.add(id);
     delete this.itemLocations[id];
+    if (SHELVED_ITEM_IDS.includes(id)) {
+      this.addObjective('tidy-shelf', 'Return everything to its place on the shelf');
+    }
     this._notify();
   }
 

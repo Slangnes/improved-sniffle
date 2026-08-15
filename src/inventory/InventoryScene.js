@@ -5,6 +5,8 @@ const ROOM_W = 12;
 const ROOM_D = 9;
 const PLAYER_RADIUS = 0.32;
 const MOVE_SPEED = 3.4;
+const SLOT_RADIUS = 1.1;
+const SHELVED_ITEM_IDS = ['compass', 'map'];
 
 const ITEM_MESH_DEFS = {
   compass: () => {
@@ -42,6 +44,7 @@ export class InventoryScene {
     this.colliders = [];
     this.interactables = [];
     this.itemMeshes = new Map();
+    this.shelfSlots = [];
 
     this.prompt = null;
     this.toastMessage = null;
@@ -78,7 +81,7 @@ export class InventoryScene {
 
     this._addPoster('poster-howto', -4.5, -ROOM_D / 2 + 0.2, 'How To Play', 'Explore the maze. Find the exit of each ring to push deeper. Press E near objects to interact.');
     this._addPoster('poster-controls', -1.4, -ROOM_D / 2 + 0.2, 'Controls', 'Click a poster to rebind keys.');
-    this._addPoster('poster-settings', 1.7, -ROOM_D / 2 + 0.2, 'Settings', 'Mouse sensitivity & more.');
+    this._addPoster('poster-settings', 1.7, -ROOM_D / 2 + 0.2, 'Settings', 'Music, sound, and mute.');
     this._addBulletinBoard(4.6, -ROOM_D / 2 + 0.2);
 
     this._addShelves(-ROOM_W / 2 + 0.25, 0);
@@ -117,6 +120,7 @@ export class InventoryScene {
       const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.1, 1.1), mat);
       shelf.position.set(x + 0.28, 1.1, z + offset);
       this.scene.add(shelf);
+      this.shelfSlots.push({ x: x + 0.28, z: z + offset });
     });
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.4, 0.1), mat);
     post.position.set(x, 1.2, z - 2.5);
@@ -210,6 +214,36 @@ export class InventoryScene {
     this.toastTimer = seconds;
   }
 
+  _isSlotOccupied(slot) {
+    for (const [, loc] of this.gameState.itemLocationIn('inventory')) {
+      if (Math.abs(loc.x - slot.x) < 0.05 && Math.abs(loc.z - slot.z) < 0.05) return true;
+    }
+    return false;
+  }
+
+  _nearestEmptySlot(px, pz) {
+    let nearest = null;
+    let nearestDist = SLOT_RADIUS;
+    for (const slot of this.shelfSlots) {
+      if (this._isSlotOccupied(slot)) continue;
+      const d = Math.hypot(slot.x - px, slot.z - pz);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = slot;
+      }
+    }
+    return nearest;
+  }
+
+  _checkTidyObjective() {
+    const allShelved = SHELVED_ITEM_IDS.every((id) => {
+      const loc = this.gameState.itemLocations[id];
+      if (!loc || loc.scene !== 'inventory') return false;
+      return this.shelfSlots.some((s) => Math.abs(s.x - loc.x) < 0.05 && Math.abs(s.z - loc.z) < 0.05);
+    });
+    if (allShelved) this.gameState.completeObjective('tidy-shelf');
+  }
+
   _resolveCollisions(x, z) {
     for (let iter = 0; iter < 3; iter++) {
       for (const c of this.colliders) {
@@ -233,8 +267,6 @@ export class InventoryScene {
   }
 
   update(dt) {
-    this.input.consumeMouseDelta();
-
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) this.toastMessage = null;
@@ -293,6 +325,10 @@ export class InventoryScene {
       }
     }
 
+    const order = ['compass', 'map'];
+    const carrying = order.find((id) => this.gameState.hasItem(id));
+    const nearestSlot = carrying ? this._nearestEmptySlot(this.playerX, this.playerZ) : null;
+
     if (nearestId) {
       this.prompt = `Press ${this.input.keyLabel('interact')} to pick up the ${ITEM_LABELS[nearestId.id]}`;
       if (this.input.wasPressed('interact')) {
@@ -302,6 +338,8 @@ export class InventoryScene {
         this.setToast(`Picked up the ${ITEM_LABELS[nearestId.id]}.`, 2);
         this.audio.playPickup();
       }
+    } else if (nearestSlot) {
+      this.prompt = `Press ${this.input.keyLabel('drop')} to place the ${ITEM_LABELS[carrying]} on the shelf`;
     } else if (nearestInteractable) {
       if (nearestInteractable.kind === 'ladder') {
         this.prompt = `Press ${this.input.keyLabel('interact')} to climb out`;
@@ -317,13 +355,17 @@ export class InventoryScene {
       this.prompt = null;
     }
 
-    if (this.input.wasPressed('drop')) {
-      const order = ['compass', 'map'];
-      const toDrop = order.find((id) => this.gameState.hasItem(id));
-      if (toDrop) {
-        this.gameState.drop(toDrop, 'inventory', this.playerX, this.playerZ);
+    if (this.input.wasPressed('drop') && carrying) {
+      if (nearestSlot) {
+        this.gameState.drop(carrying, 'inventory', nearestSlot.x, nearestSlot.z);
         this._syncItemMeshes();
-        this.setToast(`Put down the ${ITEM_LABELS[toDrop]}.`, 2);
+        this.setToast(`Sorted the ${ITEM_LABELS[carrying]} onto the shelf.`, 2);
+        this.audio.playDrop();
+        this._checkTidyObjective();
+      } else {
+        this.gameState.drop(carrying, 'inventory', this.playerX, this.playerZ);
+        this._syncItemMeshes();
+        this.setToast(`Put down the ${ITEM_LABELS[carrying]}.`, 2);
         this.audio.playDrop();
       }
     }

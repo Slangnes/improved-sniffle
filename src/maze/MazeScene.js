@@ -3,10 +3,26 @@ import { MazeWorld, CELL_SIZE, WALL_HEIGHT } from './MazeGenerator.js';
 import { createWallTexture, createFloorTexture, createCeilingTexture } from './textures.js';
 
 const WALL_THICKNESS = 0.25;
-const PLAYER_RADIUS = 0.35;
 const PLAYER_HEIGHT = 1.65;
-const MOVE_SPEED = 4.6;
 const MAX_INSTANCES = 2400;
+const STEP_DURATION = 0.22;
+const TURN_DURATION = 0.16;
+
+// N/E/S/W in generator-grid order; yaw values match the existing worldPos/forward-vector convention.
+const FACINGS = [
+  { wall: 'N', dx: 0, dy: -1, yaw: 0 },
+  { wall: 'E', dx: 1, dy: 0, yaw: -Math.PI / 2 },
+  { wall: 'S', dx: 0, dy: 1, yaw: Math.PI },
+  { wall: 'W', dx: -1, dy: 0, yaw: Math.PI / 2 },
+];
+
+function easeInOutQuad(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+function angleDelta(from, to) {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
 const ITEM_MESH_DEFS = {
   compass: () => {
     const g = new THREE.ConeGeometry(0.22, 0.4, 6);
@@ -48,13 +64,20 @@ export class MazeScene {
     this.exitMarker = null;
     this.itemMeshes = new Map();
 
-    this.collidersByCell = new Map();
     this.visitedCells = new Set();
 
+    this.cellX = 0;
+    this.cellY = 0;
+    this.facing = 0;
     this.yaw = 0;
-    this.pitch = 0;
     this.playerX = 0;
     this.playerZ = 0;
+
+    this.isAnimating = false;
+    this.animT = 0;
+    this.animDuration = STEP_DURATION;
+    this.animFrom = { x: 0, z: 0, yaw: 0 };
+    this.animTo = { x: 0, z: 0, yaw: 0 };
 
     this.toastMessage = null;
     this.toastTimer = 0;
@@ -66,20 +89,20 @@ export class MazeScene {
     this._rebuildStaticGeometry();
     this._syncItemMeshes();
 
-    const start = this.world.worldPos(this.world.startPosition.x, this.world.startPosition.y);
+    this.cellX = this.world.startPosition.x;
+    this.cellY = this.world.startPosition.y;
+    this.facing = this._openFacingIndex(this.cellX, this.cellY);
+    this.yaw = FACINGS[this.facing].yaw;
+    const start = this.world.worldPos(this.cellX, this.cellY);
     this.playerX = start.x;
     this.playerZ = start.z;
-    this.yaw = this._openFacingYaw(this.world.startPosition.x, this.world.startPosition.y);
   }
 
-  _openFacingYaw(x, y) {
+  _openFacingIndex(x, y) {
     const cell = this.world.cellAt(x, y);
     if (!cell) return 0;
-    if (!cell.N) return 0;
-    if (!cell.E) return -Math.PI / 2;
-    if (!cell.S) return Math.PI;
-    if (!cell.W) return Math.PI / 2;
-    return 0;
+    const idx = FACINGS.findIndex((f) => !cell[f.wall]);
+    return idx === -1 ? 0 : idx;
   }
 
   _buildLights() {
@@ -119,37 +142,27 @@ export class MazeScene {
   }
 
   _rebuildStaticGeometry() {
-    this.collidersByCell.clear();
     const dummy = new THREE.Object3D();
     let instanceIndex = 0;
+
+    const addWall = (edgeCx, edgeCz, w, d) => {
+      dummy.position.set(edgeCx, WALL_HEIGHT / 2, edgeCz);
+      dummy.scale.set(w, 1, d);
+      dummy.updateMatrix();
+      if (instanceIndex < MAX_INSTANCES) {
+        this.wallMesh.setMatrixAt(instanceIndex, dummy.matrix);
+        instanceIndex += 1;
+      }
+    };
 
     for (const cell of this.world.cells.values()) {
       const { x: cx, z: cz } = this.world.worldPos(cell.x, cell.y);
       const half = CELL_SIZE / 2;
-      const colliders = [];
-
-      const addWall = (edgeCx, edgeCz, w, d) => {
-        dummy.position.set(edgeCx, WALL_HEIGHT / 2, edgeCz);
-        dummy.scale.set(w, 1, d);
-        dummy.updateMatrix();
-        if (instanceIndex < MAX_INSTANCES) {
-          this.wallMesh.setMatrixAt(instanceIndex, dummy.matrix);
-          instanceIndex += 1;
-        }
-        colliders.push({
-          minX: edgeCx - w / 2,
-          maxX: edgeCx + w / 2,
-          minZ: edgeCz - d / 2,
-          maxZ: edgeCz + d / 2,
-        });
-      };
 
       if (cell.N) addWall(cx, cz - half, CELL_SIZE + WALL_THICKNESS, WALL_THICKNESS);
       if (cell.S) addWall(cx, cz + half, CELL_SIZE + WALL_THICKNESS, WALL_THICKNESS);
       if (cell.E) addWall(cx + half, cz, WALL_THICKNESS, CELL_SIZE + WALL_THICKNESS);
       if (cell.W) addWall(cx - half, cz, WALL_THICKNESS, CELL_SIZE + WALL_THICKNESS);
-
-      this.collidersByCell.set(`${cell.x},${cell.y}`, colliders);
     }
 
     this.wallMesh.count = instanceIndex;
@@ -223,41 +236,39 @@ export class MazeScene {
   }
 
   currentCellCoord() {
-    return {
-      x: Math.round(this.playerX / CELL_SIZE),
-      y: Math.round(this.playerZ / CELL_SIZE),
-    };
+    return { x: this.cellX, y: this.cellY };
   }
 
-  _nearbyColliders() {
-    const { x, y } = this.currentCellCoord();
-    const colliders = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const list = this.collidersByCell.get(`${x + dx},${y + dy}`);
-        if (list) colliders.push(...list);
-      }
-    }
-    return colliders;
+  _beginStep(dCellX, dCellY) {
+    const target = this.world.worldPos(this.cellX + dCellX, this.cellY + dCellY);
+    this.animFrom = { x: this.playerX, z: this.playerZ, yaw: this.yaw };
+    this.animTo = { x: target.x, z: target.z, yaw: this.yaw };
+    this.animDuration = STEP_DURATION;
+    this.animT = 0;
+    this.isAnimating = true;
+    this.cellX += dCellX;
+    this.cellY += dCellY;
+    this.audio.footstep('stone');
   }
 
-  _resolveCollisions(x, z, colliders) {
-    for (let iter = 0; iter < 3; iter++) {
-      for (const c of colliders) {
-        const cx = Math.max(c.minX, Math.min(x, c.maxX));
-        const cz = Math.max(c.minZ, Math.min(z, c.maxZ));
-        const dx = x - cx;
-        const dz = z - cz;
-        const distSq = dx * dx + dz * dz;
-        if (distSq < PLAYER_RADIUS * PLAYER_RADIUS && distSq > 1e-9) {
-          const dist = Math.sqrt(distSq);
-          const push = PLAYER_RADIUS - dist;
-          x += (dx / dist) * push;
-          z += (dz / dist) * push;
-        }
-      }
+  _beginTurn(newFacing) {
+    this.facing = newFacing;
+    const delta = angleDelta(this.yaw, FACINGS[newFacing].yaw);
+    this.animFrom = { x: this.playerX, z: this.playerZ, yaw: this.yaw };
+    this.animTo = { x: this.playerX, z: this.playerZ, yaw: this.yaw + delta };
+    this.animDuration = TURN_DURATION;
+    this.animT = 0;
+    this.isAnimating = true;
+  }
+
+  _tryStep(directionIndex) {
+    const cell = this.world.cellAt(this.cellX, this.cellY);
+    const dir = FACINGS[directionIndex];
+    if (cell[dir.wall]) {
+      this.audio.playBump();
+      return;
     }
-    return { x, z };
+    this._beginStep(dir.dx, dir.dy);
   }
 
   update(dt) {
@@ -266,49 +277,35 @@ export class MazeScene {
       if (this.toastTimer <= 0) this.toastMessage = null;
     }
 
-    const { dx, dy } = this.input.consumeMouseDelta();
-    if (document.pointerLockElement) {
-      const sens = this.input.sensitivity * 0.0022;
-      this.yaw -= dx * sens;
-      this.pitch -= dy * sens;
-      this.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.pitch));
+    if (this.isAnimating) {
+      this.animT += dt / this.animDuration;
+      if (this.animT >= 1) {
+        this.animT = 1;
+        this.isAnimating = false;
+      }
+      const t = easeInOutQuad(this.animT);
+      this.playerX = this.animFrom.x + (this.animTo.x - this.animFrom.x) * t;
+      this.playerZ = this.animFrom.z + (this.animTo.z - this.animFrom.z) * t;
+      this.yaw = this.animFrom.yaw + (this.animTo.yaw - this.animFrom.yaw) * t;
+    } else if (this.input.isDown('moveForward')) {
+      this._tryStep(this.facing);
+    } else if (this.input.isDown('moveBackward')) {
+      this._tryStep((this.facing + 2) % 4);
+    } else if (this.input.isDown('moveLeft')) {
+      this._beginTurn((this.facing + 3) % 4);
+    } else if (this.input.isDown('moveRight')) {
+      this._beginTurn((this.facing + 1) % 4);
     }
 
-    let ix = 0;
-    let iz = 0;
-    if (this.input.isDown('moveForward')) iz -= 1;
-    if (this.input.isDown('moveBackward')) iz += 1;
-    if (this.input.isDown('moveLeft')) ix -= 1;
-    if (this.input.isDown('moveRight')) ix += 1;
-
-    if (ix !== 0 || iz !== 0) {
-      const len = Math.hypot(ix, iz);
-      ix /= len;
-      iz /= len;
-      const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-      const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-      const moveX = (forward.x * -iz + right.x * ix) * MOVE_SPEED * dt;
-      const moveZ = (forward.z * -iz + right.z * ix) * MOVE_SPEED * dt;
-
-      const desiredX = this.playerX + moveX;
-      const desiredZ = this.playerZ + moveZ;
-      const colliders = this._nearbyColliders();
-      const resolved = this._resolveCollisions(desiredX, desiredZ, colliders);
-      this.playerX = resolved.x;
-      this.playerZ = resolved.z;
-    }
-
-    const cell = this.currentCellCoord();
-    this.visitedCells.add(`${cell.x},${cell.y}`);
-    this.audio.updateFootsteps(ix !== 0 || iz !== 0, 'stone', dt);
+    this.visitedCells.add(`${this.cellX},${this.cellY}`);
 
     this.camera.position.set(this.playerX, PLAYER_HEIGHT, this.playerZ);
     this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = this.pitch;
+    this.camera.rotation.x = 0;
     this.torch.position.set(this.playerX, PLAYER_HEIGHT, this.playerZ);
 
     this._handleInteractions();
-    this._checkExit();
+    if (!this.isAnimating) this._checkExit();
 
     this.input.endFrame();
   }
@@ -354,30 +351,32 @@ export class MazeScene {
   }
 
   _checkExit() {
-    const exitPos = this.world.worldPos(this.world.exit.x, this.world.exit.y);
-    const d = Math.hypot(exitPos.x - this.playerX, exitPos.z - this.playerZ);
-    if (d < 1.1) {
-      if (this.world.layer < 3) {
-        const prevLayer = this.world.layer;
-        this.world.extendToNextLayer();
-        this.gameState.advanceLayer();
-        this._rebuildStaticGeometry();
-        this._syncItemMeshes();
-        this.setToast(`Layer ${prevLayer} cleared. The maze extends outward...`, 3.5);
-        if (this.onLayerComplete) this.onLayerComplete(this.world.layer);
-      } else {
-        this.gameState.completeRun();
-        this.world.reset();
-        this.world.generateFirstLayer();
-        this._rebuildStaticGeometry();
-        this._syncItemMeshes();
-        const start = this.world.worldPos(this.world.startPosition.x, this.world.startPosition.y);
-        this.playerX = start.x;
-        this.playerZ = start.z;
-        this.visitedCells.clear();
-        this.setToast('You escaped the depths! The maze reshapes itself...', 4);
-        if (this.onRunComplete) this.onRunComplete();
-      }
+    if (this.cellX !== this.world.exit.x || this.cellY !== this.world.exit.y) return;
+
+    if (this.world.layer < 3) {
+      const prevLayer = this.world.layer;
+      this.world.extendToNextLayer();
+      this.gameState.advanceLayer();
+      this._rebuildStaticGeometry();
+      this._syncItemMeshes();
+      this.setToast(`Layer ${prevLayer} cleared. The maze extends outward...`, 3.5);
+      if (this.onLayerComplete) this.onLayerComplete(this.world.layer);
+    } else {
+      this.gameState.completeRun();
+      this.world.reset();
+      this.world.generateFirstLayer();
+      this._rebuildStaticGeometry();
+      this._syncItemMeshes();
+      this.cellX = this.world.startPosition.x;
+      this.cellY = this.world.startPosition.y;
+      this.facing = this._openFacingIndex(this.cellX, this.cellY);
+      this.yaw = FACINGS[this.facing].yaw;
+      const start = this.world.worldPos(this.cellX, this.cellY);
+      this.playerX = start.x;
+      this.playerZ = start.z;
+      this.visitedCells.clear();
+      this.setToast('You escaped the depths! The maze reshapes itself...', 4);
+      if (this.onRunComplete) this.onRunComplete();
     }
   }
 

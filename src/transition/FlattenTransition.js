@@ -9,7 +9,6 @@ export class FlattenTransition {
 
   async play(onSwap) {
     this.playing = true;
-    if (document.pointerLockElement) document.exitPointerLock();
 
     this.viewport.style.transform = 'scaleY(0.02) rotateX(58deg)';
     this.viewport.style.filter = 'brightness(0.2) saturate(0.5)';

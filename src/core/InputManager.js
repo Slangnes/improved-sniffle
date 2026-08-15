@@ -31,15 +31,11 @@ export class InputManager {
     this.bindings = this._loadBindings();
     this.keysDown = new Set();
     this.actionsPressedThisFrame = new Set();
-    this.mouseDeltaX = 0;
-    this.mouseDeltaY = 0;
     this._listeningFor = null;
     this._listenCallback = null;
-    this.sensitivity = this._loadSensitivity();
 
     window.addEventListener('keydown', (e) => this._onKeyDown(e));
     window.addEventListener('keyup', (e) => this._onKeyUp(e));
-    window.addEventListener('mousemove', (e) => this._onMouseMove(e));
   }
 
   _loadBindings() {
@@ -54,16 +50,6 @@ export class InputManager {
 
   _saveBindings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.bindings));
-  }
-
-  _loadSensitivity() {
-    const raw = localStorage.getItem('box-and-bones:sensitivity');
-    return raw ? parseFloat(raw) : 1.0;
-  }
-
-  setSensitivity(value) {
-    this.sensitivity = value;
-    localStorage.setItem('box-and-bones:sensitivity', String(value));
   }
 
   listenForRebind(action, callback) {
@@ -90,25 +76,12 @@ export class InputManager {
     this.keysDown.delete(e.code);
   }
 
-  _onMouseMove(e) {
-    this.mouseDeltaX += e.movementX || 0;
-    this.mouseDeltaY += e.movementY || 0;
-  }
-
   isDown(action) {
     return this.keysDown.has(this.bindings[action]);
   }
 
   wasPressed(action) {
     return this.actionsPressedThisFrame.has(this.bindings[action]);
-  }
-
-  consumeMouseDelta() {
-    const dx = this.mouseDeltaX;
-    const dy = this.mouseDeltaY;
-    this.mouseDeltaX = 0;
-    this.mouseDeltaY = 0;
-    return { dx, dy };
   }
 
   endFrame() {
