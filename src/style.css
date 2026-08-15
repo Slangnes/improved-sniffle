@@ -41,6 +41,11 @@ html, body {
   z-index: 20;
 }
 
+/* crosshair only makes sense in the first-person maze */
+body.in-box #crosshair {
+  display: none;
+}
+
 #prompt {
   position: fixed;
   left: 50%;
@@ -80,26 +85,54 @@ html, body {
   max-width: 320px;
 }
 
-#hud-slots {
-  margin-top: 8px;
-  display: flex;
-  gap: 6px;
-}
+/* ---------- hands ---------- */
 
-.slot {
-  width: 34px;
-  height: 34px;
+.hand-slot {
+  position: fixed;
+  bottom: 16px;
+  width: 52px;
+  height: 52px;
   border: 1px solid #7a6a45;
+  border-radius: 10px;
   background: rgba(10, 8, 6, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 22px;
+  z-index: 22;
+  cursor: pointer;
 }
 
-.slot.active {
+#hand-left {
+  left: 16px;
+}
+
+#hand-right {
+  right: 16px;
+}
+
+.hand-slot .hand-tag {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #9a8a5f;
+}
+
+.hand-slot.empty {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hand-slot.active {
   border-color: #e8c96a;
   box-shadow: 0 0 6px #e8c96a55;
+}
+
+/* on touch layouts the control clusters own the bottom corners */
+body.touch .hand-slot {
+  bottom: calc(238px + env(safe-area-inset-bottom, 0px));
 }
 
 #minimap-wrap {
@@ -115,7 +148,8 @@ html, body {
 #compass-wrap {
   position: fixed;
   bottom: 12px;
-  right: 12px;
+  right: 50%;
+  transform: translateX(50%);
   z-index: 20;
 }
 
@@ -143,89 +177,134 @@ html, body {
   display: none !important;
 }
 
+/* ---------- detailed views: the info is on the object ---------- */
+
 #modal-layer {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 
 #modal-box {
   position: relative;
-  width: min(560px, 88vw);
-  max-height: 80vh;
+  pointer-events: auto;
+}
+
+/* Sized by JS to the zoomed object's projected screen rectangle, so the
+   text sits on the actual poster/board/paper rather than a floating card. */
+#modal-box.panel-world {
+  overflow: hidden;
+}
+
+#modal-box.panel-world #modal-content {
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
+  padding: 6% 8%;
+}
+
+#modal-box.panel-paper {
+  color: #241c10;
+}
+
+#modal-box.panel-board {
+  color: #241c10;
+}
+
+#modal-box.panel-dark {
+  color: #e8c96a;
+}
+
+#modal-box.panel-dark h2 {
+  border-bottom-color: #e8c96a;
+}
+
+/* Carried-item inspection: a small parchment scrap held up to the eye. */
+#modal-box.panel-item {
+  width: min(520px, 88vw);
+  max-height: 78vh;
   background: #ece0bd;
   color: #241c10;
-  border: 10px solid #6b4a2b;
+  border: 8px solid #6b4a2b;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-  padding: 26px 28px;
-  font-family: 'Georgia', 'Courier New', serif;
 }
 
-#modal-box h2 {
+#modal-box.panel-item #modal-content {
+  max-height: calc(78vh - 16px);
+  overflow-y: auto;
+  padding: 22px 26px;
+}
+
+#modal-content {
+  font-family: 'Georgia', 'Courier New', serif;
+  font-size: 14px;
+}
+
+#modal-content h2 {
   margin-top: 0;
   border-bottom: 2px solid #6b4a2b;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   letter-spacing: 1px;
+  font-size: 20px;
 }
 
-#modal-box .keybind-row {
+#modal-content .keybind-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px dashed #b7a578;
+  padding: 5px 0;
+  border-bottom: 1px dashed rgba(107, 74, 43, 0.5);
+  gap: 8px;
 }
 
-#modal-box button.rebind {
+#modal-content button.rebind {
   font-family: inherit;
   background: #6b4a2b;
   color: #ece0bd;
   border: none;
   padding: 5px 10px;
   cursor: pointer;
-  min-width: 90px;
+  min-width: 70px;
 }
 
-#modal-box button.rebind.listening {
+#modal-content button.rebind.listening {
   background: #b53b2c;
 }
 
-#modal-box .objective-row {
+#modal-content .objective-row {
   display: flex;
   gap: 10px;
   align-items: baseline;
-  padding: 6px 0;
+  padding: 5px 0;
 }
 
-#modal-box .objective-row .done {
+#modal-content .objective-row .done {
   text-decoration: line-through;
   opacity: 0.55;
 }
 
-#modal-box input[type="range"] {
-  width: 60%;
+#modal-content input[type='range'] {
+  width: 55%;
 }
 
 #modal-close {
   position: absolute;
-  top: 6px;
-  right: 10px;
-  background: none;
-  border: none;
-  font-size: 26px;
+  top: -14px;
+  right: -14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #241c10;
+  border: 2px solid #7a6a45;
+  font-size: 20px;
   cursor: pointer;
-  color: #6b4a2b;
+  color: #e8dfc8;
   line-height: 1;
-}
-
-/* crosshair only makes sense in the first-person maze */
-body.in-box #crosshair {
-  display: none;
+  z-index: 2;
 }
 
 /* slight push-in while inspecting a carried item */
@@ -262,10 +341,28 @@ body.touch #touch-controls {
   display: block;
 }
 
+.tc-side {
+  position: absolute;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+#tc-left {
+  left: calc(14px + env(safe-area-inset-left, 0px));
+}
+
+#tc-right {
+  right: calc(14px + env(safe-area-inset-right, 0px));
+}
+
 .tc-btn {
   pointer-events: auto;
-  width: 58px;
-  height: 58px;
+  width: 56px;
+  height: 56px;
   border-radius: 12px;
   background: rgba(10, 8, 6, 0.55);
   border: 1px solid #7a6a45;
@@ -292,16 +389,22 @@ body.touch #touch-controls {
 }
 
 .tc-btn.tc-wide {
-  width: 86px;
-  height: 52px;
-  font-size: 13px;
+  width: 96px;
+  height: 46px;
+  font-size: 12px;
   letter-spacing: 2px;
 }
 
+#tc-move,
+#tc-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
 #tc-dpad {
-  position: absolute;
-  left: calc(14px + env(safe-area-inset-left, 0px));
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   display: grid;
   grid-template-areas:
     '. up .'
@@ -310,29 +413,14 @@ body.touch #touch-controls {
   gap: 8px;
 }
 
-#tc-actions {
-  position: absolute;
-  right: calc(14px + env(safe-area-inset-right, 0px));
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+#tc-turns {
   display: flex;
-  flex-direction: column;
   gap: 10px;
 }
 
-/* keep the compass dial clear of the action buttons on touch layouts */
-body.touch #compass-wrap {
-  bottom: calc(210px + env(safe-area-inset-bottom, 0px));
-}
-
-/* lift prompts above the control clusters */
-body.touch #prompt {
-  bottom: 32%;
-}
-
-/* HUD slot icons are tappable to toggle the compass/map overlays */
-#hud-slots .slot {
-  pointer-events: auto;
-  cursor: pointer;
+/* the BOX button only exists in the maze — the ladder is the way out */
+body.in-box .tc-box {
+  display: none;
 }
 
 @media (max-width: 700px) {

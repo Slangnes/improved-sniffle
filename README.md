@@ -24,33 +24,40 @@ there is no separate menu screen. Press **BEGIN** and the camera pulls back
 into the isometric room.
 
 Everything readable works the same way: walk up to a poster, the bulletin
-board, or the desk and interact, and the camera flies into a **detailed
-view** of it — settings and key-rebinding live on the actual posters.
-Carried items (the map, the compass, a rolled-up poster) open their own
-detailed views from their HUD icons. Posters can even be taken off the wall
-from inside their detailed view, carried rolled up, dropped anywhere — even
+board, or the desk and use it, and the camera flies onto the object — the
+information is written **on the poster itself**, not in a pop-up. Settings
+and key-rebinding live on the actual posters. Posters can be taken off the
+wall from their detailed view, carried rolled up, dropped anywhere — even
 in the maze — and hung back on any empty hook.
 
-In the maze, movement is tile-by-tile like a classic dungeon crawler
-(Wizardry, Eye of the Beholder): W/S step forward or back one tile, A/D turn
-90&deg; in place. In the box, movement is free-roaming and screen-relative.
+Movement is one square at a time everywhere, like a classic dungeon crawler
+(Wizardry, Eye of the Beholder): W/S step, A/D strafe, Q/E turn. In the
+box you steer a little hooded explorer across the floor grid of an
+isometric room; the ladder is the only way out. In the maze it's
+first-person.
 
-On touch devices an on-screen D-pad and USE / DROP / BOX buttons appear
-automatically, driving exactly the same actions, and carried-item HUD icons
-can be tapped to inspect them — the game is playable on a phone at the same
-URL.
+You have a **left hand and a right hand**. Each holds one item; what your
+left hand carries sits at the bottom-left of the screen (and in the maze,
+floats at that corner of your view), the right at the right. F picks up
+into the next free hand (right first); Z drops/shelves/hangs the left
+hand's item, C the right's. Tap a held item to inspect it up close.
+
+On touch devices the movement pad, turn buttons, USE, and one DROP button
+per hand (each on its own hand's side) appear automatically; a left-handed
+setting swaps the pad and action clusters.
 
 ## Controls (rebindable in-game via the Controls poster)
 
 | Action                             | Default |
 | ----------------------------------- | ------- |
-| Move (box) / Step forward-back (maze) | W S   |
-| Strafe (box) / Turn left-right (maze) | A D   |
-| Interact / open detailed view       | E       |
-| Drop, shelf, or hang the carried item | Q     |
-| Look into / climb out of your box   | I       |
-| Toggle Compass overlay              | 1       |
-| Toggle Map overlay                  | 2       |
+| Step forward / back                 | W S     |
+| Strafe left / right                 | A D     |
+| Turn left / right                   | Q E     |
+| Use / interact                      | F       |
+| Left hand: drop, shelve, or hang    | Z       |
+| Right hand: drop, shelve, or hang   | C       |
+| Look into your box (maze only)      | I       |
+| Toggle Compass / Map overlays       | 1 / 2   |
 | Mute audio                          | M       |
 
 ## What's in the box

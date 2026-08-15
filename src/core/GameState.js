@@ -35,15 +35,23 @@ export class GameState {
     this.scene = saved?.scene ?? 'inventory';
     this.mazeLayer = saved?.mazeLayer ?? 1;
     this.runsCompleted = saved?.runsCompleted ?? 0;
-    // Carried items in pickup order — drops release the most recent first.
-    this.carried = Array.isArray(saved?.carried) ? [...saved.carried] : [];
+    // The player has two hands; each can hold one item. The right hand is
+    // the preferred (first-filled) one.
+    if (saved?.hands) {
+      this.hands = { left: saved.hands.left ?? null, right: saved.hands.right ?? null };
+    } else if (Array.isArray(saved?.carried)) {
+      // migrate pre-hands saves
+      this.hands = { right: saved.carried[0] ?? null, left: saved.carried[1] ?? null };
+    } else {
+      this.hands = { left: null, right: null };
+    }
     this.activeCompass = saved?.activeCompass ?? true;
     this.activeMap = saved?.activeMap ?? true;
     this.itemLocations = saved?.itemLocations ?? JSON.parse(JSON.stringify(DEFAULT_ITEM_HOMES));
     // Older saves predate movable posters: hang any poster that has no
     // recorded location and is not carried.
     for (const id of POSTER_IDS) {
-      if (!this.itemLocations[id] && !this.carried.includes(id)) {
+      if (!this.itemLocations[id] && !this.hasItem(id)) {
         this.itemLocations[id] = JSON.parse(JSON.stringify(DEFAULT_ITEM_HOMES[id]));
       }
     }
@@ -67,7 +75,7 @@ export class GameState {
       scene: this.scene,
       mazeLayer: this.mazeLayer,
       runsCompleted: this.runsCompleted,
-      carried: [...this.carried],
+      hands: { ...this.hands },
       activeCompass: this.activeCompass,
       activeMap: this.activeMap,
       itemLocations: this.itemLocations,
@@ -88,41 +96,69 @@ export class GameState {
   }
 
   hasItem(id) {
-    return this.carried.includes(id);
+    return this.hands.left === id || this.hands.right === id;
   }
 
-  // Most recently picked-up carried item (what Q releases first).
-  topCarried() {
-    return this.carried.length ? this.carried[this.carried.length - 1] : null;
-  }
-
-  // Most recently picked-up carried poster, if any.
-  topCarriedPoster() {
-    for (let i = this.carried.length - 1; i >= 0; i--) {
-      if (POSTER_IDS.includes(this.carried[i])) return this.carried[i];
-    }
+  handOf(id) {
+    if (this.hands.left === id) return 'left';
+    if (this.hands.right === id) return 'right';
     return null;
   }
 
+  handItem(side) {
+    return this.hands[side];
+  }
+
+  // The hand a new pickup would go into (right first), or null if full.
+  freeHand() {
+    if (!this.hands.right) return 'right';
+    if (!this.hands.left) return 'left';
+    return null;
+  }
+
+  handsFull() {
+    return !!(this.hands.left && this.hands.right);
+  }
+
+  carriedList() {
+    return [this.hands.left, this.hands.right].filter(Boolean);
+  }
+
+  // Picks an item into the free hand; returns the hand used, or null if
+  // both hands are full (nothing happens).
   pickUp(id) {
-    if (!this.carried.includes(id)) this.carried.push(id);
+    const hand = this.freeHand();
+    if (!hand) return null;
+    this.hands[hand] = id;
     delete this.itemLocations[id];
     if (SHELVED_ITEM_IDS.includes(id)) {
       this.addObjective('tidy-shelf', 'Return everything to its place on the shelf');
     }
     this._notify();
+    return hand;
   }
 
-  drop(id, sceneName, x, z) {
-    this.carried = this.carried.filter((c) => c !== id);
+  dropFromHand(side, sceneName, x, z) {
+    const id = this.hands[side];
+    if (!id) return null;
+    this.hands[side] = null;
     this.itemLocations[id] = { scene: sceneName, x, z };
     this._notify();
+    return id;
   }
 
-  hangPoster(id, anchorIndex) {
-    this.carried = this.carried.filter((c) => c !== id);
+  hangPosterFromHand(side, anchorIndex) {
+    const id = this.hands[side];
+    if (!id || !POSTER_IDS.includes(id)) return null;
+    this.hands[side] = null;
     this.itemLocations[id] = { scene: 'inventory-wall', anchor: anchorIndex };
     this._notify();
+    return id;
+  }
+
+  // Used when a poster is taken off the wall from its detailed view.
+  takeIntoHand(id) {
+    return this.pickUp(id);
   }
 
   posterOnAnchor(anchorIndex) {

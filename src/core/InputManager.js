@@ -1,27 +1,46 @@
+// Classic dungeon-crawler binding scheme: WASD moves and strafes, Q/E turn
+// in place, F uses, and each hand has its own drop/place key (Z for the
+// left hand, C for the right — mirroring where each hand's item sits on
+// screen).
 const DEFAULT_BINDINGS = {
   moveForward: 'KeyW',
   moveBackward: 'KeyS',
-  moveLeft: 'KeyA',
-  moveRight: 'KeyD',
-  interact: 'KeyE',
+  strafeLeft: 'KeyA',
+  strafeRight: 'KeyD',
+  turnLeft: 'KeyQ',
+  turnRight: 'KeyE',
+  interact: 'KeyF',
+  dropLeft: 'KeyZ',
+  dropRight: 'KeyC',
   inventory: 'KeyI',
-  drop: 'KeyQ',
   slot1: 'Digit1',
   slot2: 'Digit2',
   mute: 'KeyM',
 };
 
 const ACTION_LABELS = {
-  moveForward: 'Move Forward',
-  moveBackward: 'Move Backward',
-  moveLeft: 'Move Left',
-  moveRight: 'Move Right',
-  interact: 'Interact',
-  inventory: 'Open / Close Box',
-  drop: 'Drop Item',
-  slot1: 'Use Slot 1',
-  slot2: 'Use Slot 2',
+  moveForward: 'Step Forward',
+  moveBackward: 'Step Backward',
+  strafeLeft: 'Strafe Left',
+  strafeRight: 'Strafe Right',
+  turnLeft: 'Turn Left',
+  turnRight: 'Turn Right',
+  interact: 'Use / Interact',
+  dropLeft: 'Left Hand: Drop / Place',
+  dropRight: 'Right Hand: Drop / Place',
+  inventory: 'Look Into Box (in maze)',
+  slot1: 'Toggle Compass Overlay',
+  slot2: 'Toggle Map Overlay',
   mute: 'Toggle Mute',
+};
+
+const TOUCH_NAMES = {
+  interact: 'USE',
+  dropLeft: 'L·DROP',
+  dropRight: 'R·DROP',
+  inventory: 'BOX',
+  turnLeft: '⟲',
+  turnRight: '⟳',
 };
 
 const STORAGE_KEY = 'box-and-bones:bindings';
@@ -96,9 +115,8 @@ export class InputManager {
   // Prompt prefix for an action: names the on-screen button on touch
   // layouts, the bound key otherwise.
   promptFor(action) {
-    if (document.body.classList.contains('touch')) {
-      const touchNames = { interact: 'USE', drop: 'DROP', inventory: 'BOX' };
-      if (touchNames[action]) return `Tap ${touchNames[action]}`;
+    if (document.body.classList.contains('touch') && TOUCH_NAMES[action]) {
+      return `Tap ${TOUCH_NAMES[action]}`;
     }
     return `Press ${this.keyLabel(action)}`;
   }

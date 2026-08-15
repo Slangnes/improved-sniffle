@@ -50,6 +50,7 @@ const clock = new THREE.Clock(false);
 detailView.attach({
   inventoryScene,
   mazeScene,
+  touchControls,
   onBegin: () => {
     clock.start();
     audio.init();
@@ -81,7 +82,7 @@ window.addEventListener('resize', () => {
   mazeScene.onResize();
 });
 
-HUD.setSlotTapHandler((id) => {
+HUD.setHandTapHandler((id) => {
   if (transition.playing) return;
   detailView.openItem(id);
 });
@@ -102,7 +103,7 @@ function frame() {
   renderer.render(current.scene, current.camera);
 
   HUD.updateModeAndObjective(gameState.scene, gameState);
-  HUD.updateSlots(gameState);
+  HUD.updateHands(gameState);
   HUD.setPrompt(current.toastMessage || current.prompt);
 
   const compassOn = gameState.hasItem('compass') && gameState.activeCompass;

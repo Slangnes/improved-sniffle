@@ -44,9 +44,10 @@ export class DetailView {
     });
   }
 
-  attach({ inventoryScene, mazeScene, onBegin }) {
+  attach({ inventoryScene, mazeScene, touchControls, onBegin }) {
     this.inventoryScene = inventoryScene;
     this.mazeScene = mazeScene;
+    this.touchControls = touchControls;
     this.onBegin = onBegin;
   }
 
@@ -68,6 +69,7 @@ export class DetailView {
     this.inventoryScene.cameraOverride = true;
     this._applyPose(pose);
     this.currentId = 'title';
+    this.currentPose = pose;
     this.usesCamera = true;
     this.currentLook = pose.look.clone();
     this.state = 'open';
@@ -79,6 +81,7 @@ export class DetailView {
     const pose = this.inventoryScene.getFocusPose(id);
     if (!pose) return this.openItem(id);
     this.currentId = id;
+    this.currentPose = pose;
     this.usesCamera = true;
     this.state = 'zoomIn';
     this.inventoryScene.cameraOverride = true;
@@ -103,6 +106,7 @@ export class DetailView {
   openItem(id) {
     if (this.isOpen()) return;
     this.currentId = id;
+    this.currentPose = null;
     this.usesCamera = false;
     this.state = 'open';
     this.viewport.classList.add('inspect');
@@ -168,6 +172,21 @@ export class DetailView {
 
   _showPanel() {
     this.content.innerHTML = '';
+    const box = document.getElementById('modal-box');
+    box.className = '';
+    // The info lives ON the object: size the panel to the zoomed object's
+    // projected screen rectangle so the text sits on the actual poster /
+    // board / desk paper rather than in a floating card.
+    if (this.currentPose) {
+      const scale = window.innerHeight / this.currentPose.viewHeight;
+      box.style.width = `${Math.round(this.currentPose.contentW * scale)}px`;
+      box.style.height = `${Math.round(this.currentPose.contentH * scale)}px`;
+      box.classList.add('panel-world', this.currentPose.panelClass || 'panel-paper');
+    } else {
+      box.style.width = '';
+      box.style.height = '';
+      box.classList.add('panel-item');
+    }
     const builders = {
       title: () => this._title(),
       'poster-howto': () => this._howto(),
@@ -224,25 +243,29 @@ export class DetailView {
       outward, wrapping a new, bigger ring around the one you just cleared.
       Clear three rings and the whole thing folds back to the start &mdash;
       a fresh maze, ready to run again.</p>
-      <p>In the maze you move one tile at a time and turn in place, like an old
-      dungeon crawler &mdash; W/S to step forward or back, A/D to turn.</p>
-      <p>Pick up the Compass and Map from the shelves. Carry them with you,
-      drop them wherever you like, and use them to find your way. Stand by an
-      empty shelf spot and press Q to sort a carried item back into place.
-      Posters can come off the walls too &mdash; carry them rolled up, and hang
-      them back on any empty hook.</p>
+      <p>Everywhere, you move one square at a time: W/S step forward and
+      back, A/D sidestep, Q/E turn you in place. The ladder is the only way
+      out of the box.</p>
+      <p>You have two hands, and each can hold one thing. What your left
+      hand holds sits at the left of the screen, your right at the right.
+      F picks things up into a free hand; Z sets down (or shelves, or
+      hangs) what's in your left hand, C your right. Tap a held item to
+      look at it closely.</p>
+      <p>Pick up the Compass and Map from the shelves and use them to find
+      your way. Posters come off the walls too &mdash; carry them rolled up
+      and hang them back on any empty hook.</p>
       <ul>
-        <li>WASD to move (step/turn in the maze, free movement in the box)</li>
-        <li>E to interact with what's nearby</li>
-        <li>Q to drop, shelf, or hang whatever you're carrying</li>
-        <li>I to look into your box, or climb out of it</li>
-        <li>1 / 2 to toggle the compass / map overlays</li>
-        <li>Tap a carried item's icon to inspect it up close</li>
-        <li>M to mute all audio</li>
+        <li>W / S &mdash; step forward / back</li>
+        <li>A / D &mdash; sidestep left / right</li>
+        <li>Q / E &mdash; turn left / right</li>
+        <li>F &mdash; use what's in front of you</li>
+        <li>Z / C &mdash; left / right hand: drop, shelve, or hang</li>
+        <li>I &mdash; look into your box (from the maze)</li>
+        <li>1 / 2 &mdash; toggle the compass / map overlays</li>
+        <li>M &mdash; mute all audio</li>
       </ul>
-      <p>On a touch screen, use the on-screen pad instead: the arrows move
-      (and, in the maze, step and turn), USE interacts, DROP puts things
-      down, and BOX climbs in or out of the box.</p>`;
+      <p>On a touch screen: the pad steps and sidesteps, ⟲⟳ turn, USE
+      interacts, and each hand has its own DROP button on its own side.</p>`;
   }
 
   _controls() {
@@ -317,6 +340,20 @@ export class DetailView {
     muteRow.append(muteLabel, muteInput);
     wrap.appendChild(muteRow);
 
+    const handRow = document.createElement('div');
+    handRow.className = 'keybind-row';
+    const handLabel = document.createElement('span');
+    handLabel.textContent = 'Left-Handed Touch Layout';
+    const handInput = document.createElement('input');
+    handInput.type = 'checkbox';
+    handInput.checked = localStorage.getItem('box-and-bones:leftHanded') === '1';
+    handInput.addEventListener('change', () => {
+      localStorage.setItem('box-and-bones:leftHanded', handInput.checked ? '1' : '0');
+      this.touchControls?.applyHandedness(handInput.checked);
+    });
+    handRow.append(handLabel, handInput);
+    wrap.appendChild(handRow);
+
     const resetRow = document.createElement('div');
     resetRow.className = 'keybind-row';
     const resetBtn = document.createElement('button');
@@ -346,7 +383,7 @@ export class DetailView {
 
   _desk() {
     const g = this.gameState;
-    const carriedNames = g.carried.map((id) => ITEM_LABELS[id]).join(', ');
+    const carriedNames = g.carriedList().map((id) => ITEM_LABELS[id]).join(', ');
     this.content.innerHTML = `
       <h2>Desk</h2>
       <p>A ledger, half-filled in your own hand.</p>
@@ -394,17 +431,23 @@ export class DetailView {
   _posterFooter(id) {
     const loc = this.gameState.itemLocations[id];
     if (loc?.scene === 'inventory-wall') {
-      const btn = document.createElement('button');
-      btn.className = 'rebind';
-      btn.dataset.takeDown = id;
-      btn.textContent = 'Take it off the wall';
-      btn.style.cssText = 'display:block;margin:16px auto 0;';
-      btn.addEventListener('click', () => {
-        this.gameState.pickUp(id);
-        this.audio.playPickup();
-        this._beginClose();
-      });
-      this.content.appendChild(btn);
+      if (this.gameState.freeHand()) {
+        const btn = document.createElement('button');
+        btn.className = 'rebind';
+        btn.dataset.takeDown = id;
+        btn.textContent = 'Take it off the wall';
+        btn.style.cssText = 'display:block;margin:16px auto 0;';
+        btn.addEventListener('click', () => {
+          this.gameState.takeIntoHand(id);
+          this.audio.playPickup();
+          this._beginClose();
+        });
+        this.content.appendChild(btn);
+      } else {
+        const p = document.createElement('p');
+        p.innerHTML = `<em>You would take it down, but your hands are full.</em>`;
+        this.content.appendChild(p);
+      }
     } else {
       const p = document.createElement('p');
       p.innerHTML = `<em>Unrolled in your hands. It can hang on any empty hook.</em>`;

@@ -2,7 +2,8 @@ import { ITEM_LABELS, POSTER_IDS } from '../core/GameState.js';
 
 const modeLabel = document.getElementById('hud-mode');
 const objectiveLabel = document.getElementById('hud-objective');
-const slotsWrap = document.getElementById('hud-slots');
+const handLeftEl = document.getElementById('hand-left');
+const handRightEl = document.getElementById('hand-right');
 const promptEl = document.getElementById('prompt');
 const minimapWrap = document.getElementById('minimap-wrap');
 const minimapCanvas = document.getElementById('minimap');
@@ -12,41 +13,45 @@ const compassNeedle = document.getElementById('compass-needle');
 const SLOT_ICONS = { compass: '⟐', map: '⚑' };
 for (const id of POSTER_IDS) SLOT_ICONS[id] = '☰';
 
-let slotTapHandler = null;
+let handTapHandler = null;
 
-// Tapping a carried item's icon opens its detailed view.
-export function setSlotTapHandler(fn) {
-  slotTapHandler = fn;
+// Tapping a hand's held item opens its detailed view.
+export function setHandTapHandler(fn) {
+  handTapHandler = fn;
 }
 
-slotsWrap.addEventListener('click', (e) => {
-  const id = e.target.closest('.slot')?.dataset.item;
-  if (id && slotTapHandler) slotTapHandler(id);
-});
+for (const el of [handLeftEl, handRightEl]) {
+  el.addEventListener('click', () => {
+    if (el.dataset.item && handTapHandler) handTapHandler(el.dataset.item);
+  });
+}
 
 export function updateModeAndObjective(sceneName, gameState) {
   modeLabel.textContent = sceneName === 'maze' ? 'The Maze' : 'Inside The Box';
   objectiveLabel.textContent = gameState.currentObjectiveText();
 }
 
-let slotsCacheKey = null;
+let handsCacheKey = null;
 
-export function updateSlots(gameState) {
+// Each hand's item shows on that hand's side of the screen.
+export function updateHands(gameState) {
   const activeFor = (id) =>
     id === 'compass' ? gameState.activeCompass : id === 'map' ? gameState.activeMap : false;
-  const cacheKey = gameState.carried.map((id) => `${id}:${activeFor(id) ? 1 : 0}`).join('|');
-  if (cacheKey === slotsCacheKey) return;
-  slotsCacheKey = cacheKey;
+  const { left, right } = gameState.hands;
+  const cacheKey = `${left}:${left ? activeFor(left) : ''}|${right}:${right ? activeFor(right) : ''}`;
+  if (cacheKey === handsCacheKey) return;
+  handsCacheKey = cacheKey;
 
-  slotsWrap.innerHTML = '';
-  for (const id of gameState.carried) {
-    const el = document.createElement('div');
-    el.className = 'slot' + (activeFor(id) ? ' active' : '');
-    el.textContent = SLOT_ICONS[id] || '?';
-    el.title = ITEM_LABELS[id] || id;
-    el.dataset.item = id;
-    slotsWrap.appendChild(el);
-  }
+  const apply = (el, id, sideLabel) => {
+    el.classList.toggle('empty', !id);
+    el.classList.toggle('active', !!id && activeFor(id));
+    el.querySelector('.hand-icon').textContent = id ? SLOT_ICONS[id] || '?' : '';
+    el.title = id ? ITEM_LABELS[id] : `${sideLabel} hand (empty)`;
+    if (id) el.dataset.item = id;
+    else delete el.dataset.item;
+  };
+  apply(handLeftEl, left, 'Left');
+  apply(handRightEl, right, 'Right');
 }
 
 export function setPrompt(text) {

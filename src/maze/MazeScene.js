@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { MazeWorld, CELL_SIZE, WALL_HEIGHT } from './MazeGenerator.js';
 import { createWallTexture, createFloorTexture, createCeilingTexture } from './textures.js';
 import { POSTER_IDS, ITEM_LABELS } from '../core/GameState.js';
+import { buildItemMesh } from '../items/itemMeshes.js';
 
 const BASE_FOV = 72;
 const FLAT_FOV = 16;
@@ -27,39 +28,6 @@ function easeInOutQuad(t) {
 
 function angleDelta(from, to) {
   return Math.atan2(Math.sin(to - from), Math.cos(to - from));
-}
-const ITEM_MESH_DEFS = {
-  compass: () => {
-    const g = new THREE.ConeGeometry(0.22, 0.4, 6);
-    const m = new THREE.MeshStandardMaterial({ color: 0xd9b24c, emissive: 0x2a1c00 });
-    const mesh = new THREE.Mesh(g, m);
-    mesh.rotation.x = Math.PI;
-    return mesh;
-  },
-  map: () => {
-    const g = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8);
-    const m = new THREE.MeshStandardMaterial({ color: 0xe8dcb0 });
-    return new THREE.Mesh(g, m);
-  },
-};
-
-// Posters dropped in the maze lie on the floor as rolled scrolls.
-for (const posterId of POSTER_IDS) {
-  ITEM_MESH_DEFS[posterId] = () => {
-    const group = new THREE.Group();
-    const paper = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.1, 0.1, 0.66, 10),
-      new THREE.MeshStandardMaterial({ color: 0xe6d9b2 })
-    );
-    paper.rotation.z = Math.PI / 2;
-    const band = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.11, 0.13, 10),
-      new THREE.MeshStandardMaterial({ color: 0x8a4a2a })
-    );
-    band.rotation.z = Math.PI / 2;
-    group.add(paper, band);
-    return group;
-  };
 }
 
 export class MazeScene {
@@ -111,6 +79,17 @@ export class MazeScene {
     this._restoreLayerFromState();
     this._rebuildStaticGeometry();
     this._syncItemMeshes();
+
+    // Held-item view-models hang off the camera at each hand's corner.
+    this.scene.add(this.camera);
+    this.handAnchors = { left: new THREE.Group(), right: new THREE.Group() };
+    this.handAnchors.left.position.set(-0.5, -0.46, -1.05);
+    this.handAnchors.left.rotation.set(0.55, 0.35, 0.1);
+    this.handAnchors.right.position.set(0.5, -0.46, -1.05);
+    this.handAnchors.right.rotation.set(0.55, -0.35, -0.1);
+    this.camera.add(this.handAnchors.left, this.handAnchors.right);
+    this._syncHeldItems();
+    this.gameState.onChange(() => this._syncHeldItems());
 
     this.cellX = this.world.startPosition.x;
     this.cellY = this.world.startPosition.y;
@@ -244,12 +223,27 @@ export class MazeScene {
     this.itemMeshes.clear();
 
     for (const [id, loc] of this.gameState.itemLocationIn('maze')) {
-      const build = ITEM_MESH_DEFS[id];
-      if (!build) continue;
-      const mesh = build();
-      mesh.position.set(loc.x, POSTER_IDS.includes(id) ? 0.14 : 0.4, loc.z);
+      const mesh = buildItemMesh(id);
+      if (!mesh) continue;
+      mesh.position.set(loc.x, POSTER_IDS.includes(id) ? 0.12 : 0.02, loc.z);
+      mesh.scale.setScalar(1.6);
       this.scene.add(mesh);
       this.itemMeshes.set(id, mesh);
+    }
+  }
+
+  // First-person "held" view-models: each hand's item floats at its own
+  // bottom corner of the view, attached to the camera.
+  _syncHeldItems() {
+    for (const side of ['left', 'right']) {
+      const anchor = this.handAnchors[side];
+      anchor.clear();
+      const id = this.gameState.hands[side];
+      if (!id) continue;
+      const mesh = buildItemMesh(id);
+      if (!mesh) continue;
+      mesh.scale.setScalar(0.7);
+      anchor.add(mesh);
     }
   }
 
@@ -314,9 +308,13 @@ export class MazeScene {
       this._tryStep(this.facing);
     } else if (this.input.isDown('moveBackward')) {
       this._tryStep((this.facing + 2) % 4);
-    } else if (this.input.isDown('moveLeft')) {
+    } else if (this.input.isDown('strafeLeft')) {
+      this._tryStep((this.facing + 3) % 4);
+    } else if (this.input.isDown('strafeRight')) {
+      this._tryStep((this.facing + 1) % 4);
+    } else if (this.input.isDown('turnLeft')) {
       this._beginTurn((this.facing + 3) % 4);
-    } else if (this.input.isDown('moveRight')) {
+    } else if (this.input.isDown('turnRight')) {
       this._beginTurn((this.facing + 1) % 4);
     }
 
@@ -343,27 +341,33 @@ export class MazeScene {
     }
 
     if (nearestId) {
-      this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestId]}`;
-      if (this.input.wasPressed('interact')) {
-        this.gameState.pickUp(nearestId);
-        this.scene.remove(this.itemMeshes.get(nearestId));
-        this.itemMeshes.delete(nearestId);
-        this.setToast(`Picked up the ${ITEM_LABELS[nearestId]}.`, 2);
-        this.audio.playPickup();
+      if (this.gameState.freeHand()) {
+        this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestId]}`;
+        if (this.input.wasPressed('interact')) {
+          const hand = this.gameState.pickUp(nearestId);
+          this.scene.remove(this.itemMeshes.get(nearestId));
+          this.itemMeshes.delete(nearestId);
+          this.setToast(`Picked up the ${ITEM_LABELS[nearestId]} in your ${hand} hand.`, 2);
+          this.audio.playPickup();
+        }
+      } else {
+        this.prompt = `Your hands are full`;
       }
     } else {
       this.prompt = `${this.input.promptFor('inventory')} to look into your box`;
     }
 
-    if (this.input.wasPressed('drop')) {
-      const toDrop = this.gameState.topCarried();
-      if (toDrop) {
-        this.gameState.drop(toDrop, 'maze', this.playerX, this.playerZ);
-        this._syncItemMeshes();
-        this.setToast(`Dropped the ${ITEM_LABELS[toDrop]}.`, 2);
-        this.audio.playDrop();
-      }
-    }
+    const dropHand = (side) => {
+      const id = this.gameState.handItem(side);
+      if (!id) return;
+      const offset = side === 'left' ? -0.35 : 0.35;
+      this.gameState.dropFromHand(side, 'maze', this.playerX + offset, this.playerZ);
+      this._syncItemMeshes();
+      this.setToast(`Dropped the ${ITEM_LABELS[id]}.`, 2);
+      this.audio.playDrop();
+    };
+    if (this.input.wasPressed('dropLeft')) dropHand('left');
+    if (this.input.wasPressed('dropRight')) dropHand('right');
 
     if (this.input.wasPressed('inventory') && this.onRequestBox) {
       this.onRequestBox();
