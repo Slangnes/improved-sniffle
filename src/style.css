@@ -1,0 +1,278 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #05050a;
+  font-family: 'Courier New', Courier, monospace;
+  color: #e8dfc8;
+  user-select: none;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  transform-origin: center center;
+  transition: transform 0.5s cubic-bezier(0.6, 0, 0.4, 1), filter 0.5s ease;
+  will-change: transform, filter;
+}
+
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(232, 223, 200, 0.6);
+  pointer-events: none;
+  z-index: 20;
+}
+
+#prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 14%;
+  transform: translateX(-50%);
+  background: rgba(10, 8, 6, 0.85);
+  border: 1px solid #7a6a45;
+  padding: 8px 16px;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#hud {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  font-size: 13px;
+  line-height: 1.5;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+}
+
+#hud-mode {
+  color: #c9b98a;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+#hud-objective {
+  color: #e8dfc8;
+  margin-top: 2px;
+  max-width: 320px;
+}
+
+#hud-slots {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.slot {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #7a6a45;
+  background: rgba(10, 8, 6, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.slot.active {
+  border-color: #e8c96a;
+  box-shadow: 0 0 6px #e8c96a55;
+}
+
+#minimap-wrap {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  border: 2px solid #7a6a45;
+  background: rgba(5, 5, 10, 0.75);
+  padding: 4px;
+}
+
+#compass-wrap {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 20;
+}
+
+#compass-dial {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 2px solid #7a6a45;
+  background: radial-gradient(circle, #14110c 0%, #05050a 100%);
+  position: relative;
+}
+
+#compass-needle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 26px;
+  margin: -26px 0 0 -1.5px;
+  background: linear-gradient(to bottom, #d84b3a 0%, #d84b3a 50%, #cfc7ad 50%, #cfc7ad 100%);
+  transform-origin: bottom center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#modal-layer {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#modal-box {
+  position: relative;
+  width: min(560px, 88vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: #ece0bd;
+  color: #241c10;
+  border: 10px solid #6b4a2b;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  padding: 26px 28px;
+  font-family: 'Georgia', 'Courier New', serif;
+}
+
+#modal-box h2 {
+  margin-top: 0;
+  border-bottom: 2px solid #6b4a2b;
+  padding-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+#modal-box .keybind-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px dashed #b7a578;
+}
+
+#modal-box button.rebind {
+  font-family: inherit;
+  background: #6b4a2b;
+  color: #ece0bd;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  min-width: 90px;
+}
+
+#modal-box button.rebind.listening {
+  background: #b53b2c;
+}
+
+#modal-box .objective-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 0;
+}
+
+#modal-box .objective-row .done {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+#modal-box input[type="range"] {
+  width: 60%;
+}
+
+#modal-close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 26px;
+  cursor: pointer;
+  color: #6b4a2b;
+  line-height: 1;
+}
+
+#start-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #05050a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+#start-overlay h1 {
+  font-size: 42px;
+  letter-spacing: 4px;
+  color: #e8c96a;
+  margin: 0;
+}
+
+#start-overlay p {
+  opacity: 0.7;
+  margin: 0;
+}
+
+#start-button {
+  margin-top: 18px;
+  font-family: inherit;
+  font-size: 16px;
+  letter-spacing: 2px;
+  background: #e8c96a;
+  color: #241c10;
+  border: none;
+  padding: 12px 30px;
+  cursor: pointer;
+}
+
+#start-button:hover {
+  background: #f3da8c;
+}
+
+#fade-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 40;
+  transition: opacity 0.5s ease;
+}
+
+#fade-overlay.active {
+  opacity: 1;
+}

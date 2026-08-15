@@ -1,0 +1,115 @@
+import * as THREE from 'three';
+import { InputManager } from './core/InputManager.js';
+import { GameState } from './core/GameState.js';
+import { MazeScene } from './maze/MazeScene.js';
+import { InventoryScene } from './inventory/InventoryScene.js';
+import { ModalManager } from './ui/Modal.js';
+import { FlattenTransition } from './transition/FlattenTransition.js';
+import * as HUD from './ui/HUD.js';
+
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const input = new InputManager();
+const gameState = new GameState();
+const modal = new ModalManager({ input, gameState });
+const transition = new FlattenTransition();
+
+let current;
+
+const inventoryScene = new InventoryScene({
+  gameState,
+  input,
+  onOpenModal: (id) => modal.open(id),
+  onClimbOut: () => toggleBox(),
+});
+
+const mazeScene = new MazeScene({
+  gameState,
+  input,
+  onRequestBox: () => toggleBox(),
+  onLayerComplete: () => {},
+  onRunComplete: () => {},
+});
+
+current = inventoryScene;
+gameState.setScene('inventory');
+
+async function toggleBox() {
+  if (transition.playing || modal.isOpen()) return;
+  const goingToMaze = current === inventoryScene;
+  await transition.play(() => {
+    current = goingToMaze ? mazeScene : inventoryScene;
+    gameState.setScene(goingToMaze ? 'maze' : 'inventory');
+    current.onResize();
+  });
+}
+
+canvas.addEventListener('click', () => {
+  if (modal.isOpen() || transition.playing) return;
+  if (current === mazeScene && document.pointerLockElement !== canvas) {
+    canvas.requestPointerLock();
+  }
+});
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  inventoryScene.onResize();
+  mazeScene.onResize();
+});
+
+document.getElementById('start-button').addEventListener('click', () => {
+  document.getElementById('start-overlay').classList.add('hidden');
+  clock.start();
+});
+
+const clock = new THREE.Clock(false);
+
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.running ? clock.getDelta() : 0, 0.05);
+
+  if (clock.running && !modal.isOpen() && !transition.playing) {
+    current.update(dt);
+  } else {
+    input.consumeMouseDelta();
+    input.endFrame();
+  }
+
+  renderer.render(current.scene, current.camera);
+
+  HUD.updateModeAndObjective(gameState.scene, gameState);
+  HUD.updateSlots(gameState, input);
+  HUD.setPrompt(current.toastMessage || current.prompt);
+
+  const compassOn = gameState.hasItem('compass') && gameState.activeCompass;
+  HUD.setCompassVisible(compassOn && current === mazeScene);
+  if (compassOn && current === mazeScene) {
+    HUD.setCompassBearing(mazeScene.exitWorldBearingFrom());
+  }
+
+  const mapOn = gameState.hasItem('map') && gameState.activeMap;
+  HUD.setMinimapVisible(mapOn && current === mazeScene);
+  if (mapOn && current === mazeScene) {
+    HUD.drawMinimap(mazeScene.minimapData());
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  if (modal.isOpen()) return;
+  if (input.bindings.slot1 === e.code && gameState.hasItem('compass')) {
+    gameState.activeCompass = !gameState.activeCompass;
+    gameState.save();
+  }
+  if (input.bindings.slot2 === e.code && gameState.hasItem('map')) {
+    gameState.activeMap = !gameState.activeMap;
+    gameState.save();
+  }
+});
+
+frame();
+
+window.__box = { gameState, input, inventoryScene, mazeScene, get current() { return current; } };

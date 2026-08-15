@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Box &amp; Bones</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="viewport">
+      <canvas id="scene"></canvas>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="prompt" class="hidden"></div>
+
+    <div id="hud">
+      <div id="hud-mode"></div>
+      <div id="hud-objective"></div>
+      <div id="hud-slots"></div>
+    </div>
+
+    <div id="minimap-wrap" class="hidden">
+      <canvas id="minimap" width="180" height="180"></canvas>
+    </div>
+
+    <div id="compass-wrap" class="hidden">
+      <div id="compass-dial">
+        <div id="compass-needle"></div>
+      </div>
+    </div>
+
+    <div id="modal-layer" class="hidden">
+      <div id="modal-box">
+        <button id="modal-close" aria-label="Close">×</button>
+        <div id="modal-content"></div>
+      </div>
+    </div>
+
+    <div id="start-overlay">
+      <h1>Box &amp; Bones</h1>
+      <p>An old-school maze crawler.</p>
+      <button id="start-button">Begin</button>
+    </div>
+
+    <div id="fade-overlay"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
