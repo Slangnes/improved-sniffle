@@ -1,12 +1,36 @@
 import * as THREE from 'three';
 import { makeLabelTexture } from '../ui/canvasLabel.js';
+import { POSTER_IDS, ITEM_LABELS } from '../core/GameState.js';
 
 const ROOM_W = 12;
 const ROOM_D = 9;
 const PLAYER_RADIUS = 0.32;
 const MOVE_SPEED = 3.4;
 const SLOT_RADIUS = 1.1;
-const SHELVED_ITEM_IDS = ['compass', 'map'];
+const ANCHOR_RADIUS = 1.4;
+
+// Isometric camera: offset from the player toward the south-east, looking
+// back down at them, with an orthographic projection. The south and east
+// walls are low rims so the camera sees into the box like an open crate.
+const CAM_OFFSET = new THREE.Vector3(7.5, 11, 7.5);
+const FRUSTUM_HEIGHT = 9.5;
+
+// Camera-relative movement basis: pressing "up" walks toward the top of the
+// screen, which in world space is away from the camera offset.
+const CAM_FORWARD = new THREE.Vector2(-Math.SQRT1_2, -Math.SQRT1_2); // screen-up
+const CAM_RIGHT = new THREE.Vector2(Math.SQRT1_2, -Math.SQRT1_2); // screen-right
+
+const WALL_ANCHORS = [
+  { x: -4.5, z: -4.28 },
+  { x: -1.4, z: -4.28 },
+  { x: 1.7, z: -4.28 },
+];
+
+const POSTER_ART = {
+  'poster-howto': { title: 'How To Play', subtitle: 'Read me first.' },
+  'poster-controls': { title: 'Controls', subtitle: 'Keys can be changed.' },
+  'poster-settings': { title: 'Settings', subtitle: 'Music, sound, and mute.' },
+};
 
 const ITEM_MESH_DEFS = {
   compass: () => {
@@ -22,29 +46,62 @@ const ITEM_MESH_DEFS = {
     return new THREE.Mesh(g, m);
   },
 };
-const ITEM_LABELS = { compass: 'Compass', map: 'Map' };
+
+// Posters not on a wall render as rolled-up scrolls.
+function buildScrollMesh() {
+  const group = new THREE.Group();
+  const paper = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, 0.62, 10),
+    new THREE.MeshStandardMaterial({ color: 0xe6d9b2 })
+  );
+  paper.rotation.z = Math.PI / 2;
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.1, 0.12, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8a4a2a })
+  );
+  band.rotation.z = Math.PI / 2;
+  group.add(paper, band);
+  return group;
+}
+
+for (const id of POSTER_IDS) {
+  ITEM_MESH_DEFS[id] = buildScrollMesh;
+}
 
 export class InventoryScene {
-  constructor({ gameState, input, audio, onOpenModal, onClimbOut }) {
+  constructor({ gameState, input, audio, onOpenDetail, onClimbOut }) {
     this.gameState = gameState;
     this.input = input;
     this.audio = audio;
-    this.onOpenModal = onOpenModal;
+    this.onOpenDetail = onOpenDetail;
     this.onClimbOut = onClimbOut;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x100c10);
+    this.scene.background = new THREE.Color(0x0b080c);
 
-    this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 60);
+    const aspect = window.innerWidth / window.innerHeight;
+    this.camera = new THREE.OrthographicCamera(
+      (-FRUSTUM_HEIGHT * aspect) / 2,
+      (FRUSTUM_HEIGHT * aspect) / 2,
+      FRUSTUM_HEIGHT / 2,
+      -FRUSTUM_HEIGHT / 2,
+      0.1,
+      60
+    );
+    this.cameraOverride = false; // true while DetailView owns the camera
+    this.transitionZoom = 1;
 
     this.playerX = 0;
     this.playerZ = 0;
     this.facing = 0;
 
     this.colliders = [];
-    this.interactables = [];
+    this.staticInteractables = [];
+    this.posterInteractables = [];
     this.itemMeshes = new Map();
+    this.posterMeshes = new Map();
     this.shelfSlots = [];
+    this.focusPoses = new Map();
 
     this.prompt = null;
     this.toastMessage = null;
@@ -53,65 +110,103 @@ export class InventoryScene {
     this._buildRoom();
     this._buildPlayer();
     this._syncItemMeshes();
+    this._syncPosters();
+
+    // Keep meshes in sync with state changes made outside this scene
+    // (e.g. taking a poster down from inside its detail view).
+    this.gameState.onChange(() => {
+      this._syncItemMeshes();
+      this._syncPosters();
+    });
+
+    this._placeCamera(true);
   }
 
   _buildRoom() {
-    const hemi = new THREE.HemisphereLight(0x9a8f70, 0x14100a, 0.9);
+    const hemi = new THREE.HemisphereLight(0x9a8f70, 0x14100a, 0.95);
     this.scene.add(hemi);
     const lamp = new THREE.PointLight(0xffe3b0, 1.1, 20);
     lamp.position.set(0, 6, 0);
     this.scene.add(lamp);
+    const fill = new THREE.DirectionalLight(0xfff2d0, 0.35);
+    fill.position.set(6, 9, 6);
+    this.scene.add(fill);
 
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x6b5636, roughness: 0.95 });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), floorMat);
     floor.rotation.x = -Math.PI / 2;
     this.scene.add(floor);
 
+    // Cardboard rim just outside the floor so the room reads as a box.
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x2b2118, roughness: 1 });
+    const rim = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W + 3, ROOM_D + 3), rimMat);
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.y = -0.02;
+    this.scene.add(rim);
+
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x3b2f22, roughness: 1 });
-    const wallHeight = 3.2;
-    const makeWall = (w, d, x, z) => {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, wallHeight, d), wallMat);
-      wall.position.set(x, wallHeight / 2, z);
+    const tallWall = (w, d, x, z) => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 3.2, d), wallMat);
+      wall.position.set(x, 1.6, z);
       this.scene.add(wall);
     };
-    makeWall(ROOM_W + 0.6, 0.3, 0, -ROOM_D / 2);
-    makeWall(ROOM_W + 0.6, 0.3, 0, ROOM_D / 2);
-    makeWall(0.3, ROOM_D + 0.6, -ROOM_W / 2, 0);
-    makeWall(0.3, ROOM_D + 0.6, ROOM_W / 2, 0);
+    const lowRim = (w, d, x, z) => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 0.5, d), wallMat);
+      wall.position.set(x, 0.25, z);
+      this.scene.add(wall);
+    };
+    // North and west walls are full height (they face the camera); the
+    // camera-side walls are low rims so we can see into the box.
+    tallWall(ROOM_W + 0.6, 0.3, 0, -ROOM_D / 2);
+    tallWall(0.3, ROOM_D + 0.6, -ROOM_W / 2, 0);
+    lowRim(ROOM_W + 0.6, 0.3, 0, ROOM_D / 2);
+    lowRim(0.3, ROOM_D + 0.6, ROOM_W / 2, 0);
 
-    this._addPoster('poster-howto', -4.5, -ROOM_D / 2 + 0.2, 'How To Play', 'Explore the maze. Find the exit of each ring to push deeper. Press E near objects to interact.');
-    this._addPoster('poster-controls', -1.4, -ROOM_D / 2 + 0.2, 'Controls', 'Click a poster to rebind keys.');
-    this._addPoster('poster-settings', 1.7, -ROOM_D / 2 + 0.2, 'Settings', 'Music, sound, and mute.');
-    this._addBulletinBoard(4.6, -ROOM_D / 2 + 0.2);
-
+    this._addBulletinBoard(4.6, -4.35);
+    this._addTitlePoster(-5.84, 3.5);
     this._addShelves(-ROOM_W / 2 + 0.25, 0);
     this._addDesk(ROOM_W / 2 - 1.6, ROOM_D / 2 - 1.8);
     this._addLadder(0, ROOM_D / 2 - 0.3);
   }
 
-  _addPoster(id, x, z, title, subtitle) {
-    const tex = makeLabelTexture({ title, subtitle });
-    const mat = new THREE.MeshBasicMaterial({ map: tex });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.7), mat);
-    mesh.position.set(x, 1.9, z + 0.06);
-    mesh.rotation.x = -0.05;
-    this.scene.add(mesh);
-    this.interactables.push({ id, kind: 'modal', modal: id, x, z, radius: 1.4, label: title });
-  }
-
   _addBulletinBoard(x, z) {
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x4a3220 });
     const frame = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.9, 0.12), frameMat);
-    frame.position.set(x, 1.9, z + 0.1);
+    frame.position.set(x, 1.9, z + 0.04);
     this.scene.add(frame);
 
     const tex = makeLabelTexture({ title: 'Objectives', subtitle: 'Pinned notes', bg: '#c9b98a' });
-    const mat = new THREE.MeshBasicMaterial({ map: tex });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.6), mat);
-    mesh.position.set(x, 1.9, z + 0.17);
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.4, 1.6),
+      new THREE.MeshBasicMaterial({ map: tex })
+    );
+    mesh.position.set(x, 1.9, z + 0.11);
     this.scene.add(mesh);
 
-    this.interactables.push({ id: 'bulletin', kind: 'modal', modal: 'bulletin', x, z, radius: 1.5, label: 'Bulletin Board' });
+    this.staticInteractables.push({ id: 'bulletin', kind: 'detail', x, z, radius: 1.5, label: 'Bulletin Board' });
+    this.focusPoses.set('bulletin', {
+      look: new THREE.Vector3(x, 1.9, z),
+      camPos: new THREE.Vector3(x, 1.9, z + 3.4),
+      viewHeight: 2.6,
+    });
+  }
+
+  _addTitlePoster(x, z) {
+    const tex = makeLabelTexture({ title: 'Box & Bones', subtitle: 'An old-school maze crawler', bg: '#20180f', border: '#e8c96a', ink: '#e8c96a' });
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.3, 1.7),
+      new THREE.MeshBasicMaterial({ map: tex })
+    );
+    mesh.position.set(x, 1.9, z);
+    mesh.rotation.y = Math.PI / 2;
+    this.scene.add(mesh);
+
+    this.staticInteractables.push({ id: 'title', kind: 'detail', x, z, radius: 1.5, label: 'Box & Bones poster' });
+    this.focusPoses.set('title', {
+      look: new THREE.Vector3(x, 1.9, z),
+      camPos: new THREE.Vector3(x + 3.4, 1.9, z),
+      viewHeight: 2.6,
+    });
   }
 
   _addShelves(x, z) {
@@ -148,7 +243,12 @@ export class InventoryScene {
     });
 
     this.colliders.push({ minX: x - 0.9, maxX: x + 0.9, minZ: z - 0.55, maxZ: z + 0.55 });
-    this.interactables.push({ id: 'desk', kind: 'modal', modal: 'desk', x, z, radius: 1.4, label: 'Desk' });
+    this.staticInteractables.push({ id: 'desk', kind: 'detail', x, z, radius: 1.4, label: 'Desk' });
+    this.focusPoses.set('desk', {
+      look: new THREE.Vector3(x, 0.95, z),
+      camPos: new THREE.Vector3(x, 3.4, z + 1.6),
+      viewHeight: 2.4,
+    });
   }
 
   _addLadder(x, z) {
@@ -169,7 +269,7 @@ export class InventoryScene {
     glow.position.set(x, 2.4, z - 0.4);
     this.scene.add(glow);
 
-    this.interactables.push({ id: 'ladder', kind: 'ladder', x, z, radius: 1.3, label: 'Ladder' });
+    this.staticInteractables.push({ id: 'ladder', kind: 'ladder', x, z, radius: 1.3, label: 'Ladder' });
   }
 
   _buildPlayer() {
@@ -203,10 +303,91 @@ export class InventoryScene {
       const build = ITEM_MESH_DEFS[id];
       if (!build) continue;
       const mesh = build();
-      mesh.position.set(loc.x, 1.18, loc.z);
+      const onShelf = this.shelfSlots.some(
+        (s) => Math.abs(s.x - loc.x) < 0.05 && Math.abs(s.z - loc.z) < 0.05
+      );
+      mesh.position.set(loc.x, onShelf ? 1.25 : POSTER_IDS.includes(id) ? 0.12 : 0.2, loc.z);
       this.scene.add(mesh);
       this.itemMeshes.set(id, mesh);
     }
+  }
+
+  _syncPosters() {
+    for (const mesh of this.posterMeshes.values()) this.scene.remove(mesh);
+    this.posterMeshes.clear();
+    this.posterInteractables = [];
+
+    for (const id of POSTER_IDS) {
+      const loc = this.gameState.itemLocations[id];
+      if (loc?.scene !== 'inventory-wall') continue;
+      const anchor = WALL_ANCHORS[loc.anchor];
+      const art = POSTER_ART[id];
+      const tex = makeLabelTexture({ title: art.title, subtitle: art.subtitle });
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.3, 1.7),
+        new THREE.MeshBasicMaterial({ map: tex })
+      );
+      mesh.position.set(anchor.x, 1.9, anchor.z + 0.02);
+      this.scene.add(mesh);
+      this.posterMeshes.set(id, mesh);
+
+      this.posterInteractables.push({
+        id,
+        kind: 'detail',
+        x: anchor.x,
+        z: anchor.z,
+        radius: ANCHOR_RADIUS,
+        label: ITEM_LABELS[id],
+      });
+      this.focusPoses.set(id, {
+        look: new THREE.Vector3(anchor.x, 1.9, anchor.z),
+        camPos: new THREE.Vector3(anchor.x, 1.9, anchor.z + 3.4),
+        viewHeight: 2.6,
+      });
+    }
+  }
+
+  getFocusPose(id) {
+    const pose = this.focusPoses.get(id);
+    if (!pose) return null;
+    return { ...pose, zoom: FRUSTUM_HEIGHT / pose.viewHeight };
+  }
+
+  getFollowPose() {
+    return {
+      camPos: new THREE.Vector3(this.playerX, 0, this.playerZ).add(CAM_OFFSET),
+      look: new THREE.Vector3(this.playerX, 0.6, this.playerZ),
+      zoom: 1,
+    };
+  }
+
+  _placeCamera(snap = false) {
+    const target = this.getFollowPose();
+    if (snap) {
+      this.camera.position.copy(target.camPos);
+    } else {
+      this.camera.position.lerp(target.camPos, 0.12);
+    }
+    this.camera.zoom = this.transitionZoom;
+    this.camera.updateProjectionMatrix();
+    this.camera.lookAt(target.look);
+  }
+
+  transitionOut(t) {
+    // Leaving the box: the camera dives toward the player (you grow back up).
+    this.transitionZoom = 1 + 2.6 * t;
+    this._placeCamera(true);
+  }
+
+  transitionIn(t) {
+    // Entering the box: start tight on the player, pull up and out to iso.
+    this.transitionZoom = 1 + 2.6 * (1 - t);
+    this._placeCamera(true);
+  }
+
+  transitionReset() {
+    this.transitionZoom = 1;
+    this._placeCamera(true);
   }
 
   setToast(message, seconds) {
@@ -235,8 +416,23 @@ export class InventoryScene {
     return nearest;
   }
 
+  _nearestFreeAnchor(px, pz) {
+    let nearest = null;
+    let nearestDist = ANCHOR_RADIUS;
+    for (let i = 0; i < WALL_ANCHORS.length; i++) {
+      if (this.gameState.posterOnAnchor(i)) continue;
+      const a = WALL_ANCHORS[i];
+      const d = Math.hypot(a.x - px, a.z - pz);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = { index: i, ...a };
+      }
+    }
+    return nearest;
+  }
+
   _checkTidyObjective() {
-    const allShelved = SHELVED_ITEM_IDS.every((id) => {
+    const allShelved = ['compass', 'map'].every((id) => {
       const loc = this.gameState.itemLocations[id];
       if (!loc || loc.scene !== 'inventory') return false;
       return this.shelfSlots.some((s) => Math.abs(s.x - loc.x) < 0.05 && Math.abs(s.z - loc.z) < 0.05);
@@ -283,89 +479,97 @@ export class InventoryScene {
       const len = Math.hypot(ix, iz);
       ix /= len;
       iz /= len;
-      const desiredX = this.playerX + ix * MOVE_SPEED * dt;
-      const desiredZ = this.playerZ + iz * MOVE_SPEED * dt;
+      // Screen-relative: "up" walks toward the top of the isometric view.
+      const moveX = CAM_FORWARD.x * -iz + CAM_RIGHT.x * ix;
+      const moveZ = CAM_FORWARD.y * -iz + CAM_RIGHT.y * ix;
+      const desiredX = this.playerX + moveX * MOVE_SPEED * dt;
+      const desiredZ = this.playerZ + moveZ * MOVE_SPEED * dt;
       const resolved = this._resolveCollisions(desiredX, desiredZ);
       this.playerX = resolved.x;
       this.playerZ = resolved.z;
-      this.facing = Math.atan2(ix, iz);
+      this.facing = Math.atan2(moveX, moveZ);
     }
 
     this.playerMesh.position.set(this.playerX, 0, this.playerZ);
     this.playerMesh.rotation.y = this.facing;
     this.audio.updateFootsteps(ix !== 0 || iz !== 0, 'wood', dt);
 
-    const camDist = 6.5;
-    const camHeight = 7.5;
-    this.camera.position.set(this.playerX, camHeight, this.playerZ + camDist * 0.55);
-    this.camera.lookAt(this.playerX, 0, this.playerZ);
+    if (!this.cameraOverride) this._placeCamera();
 
     this._handleInteractions();
     this.input.endFrame();
   }
 
   _handleInteractions() {
-    let nearestId = null;
-    let nearestDist = 1.1;
+    let nearestItem = null;
+    let nearestItemDist = 1.1;
     for (const [id, mesh] of this.itemMeshes.entries()) {
       const d = Math.hypot(mesh.position.x - this.playerX, mesh.position.z - this.playerZ);
-      if (d < nearestDist) {
-        nearestDist = d;
-        nearestId = { kind: 'item', id };
+      if (d < nearestItemDist) {
+        nearestItemDist = d;
+        nearestItem = id;
       }
     }
 
-    let nearestInteractable = null;
-    let nearestIDist = Infinity;
-    for (const spot of this.interactables) {
+    let nearestSpot = null;
+    let nearestSpotDist = Infinity;
+    for (const spot of [...this.staticInteractables, ...this.posterInteractables]) {
       const d = Math.hypot(spot.x - this.playerX, spot.z - this.playerZ);
-      if (d < spot.radius && d < nearestIDist) {
-        nearestIDist = d;
-        nearestInteractable = spot;
+      if (d < spot.radius && d < nearestSpotDist) {
+        nearestSpotDist = d;
+        nearestSpot = spot;
       }
     }
 
-    const order = ['compass', 'map'];
-    const carrying = order.find((id) => this.gameState.hasItem(id));
-    const nearestSlot = carrying ? this._nearestEmptySlot(this.playerX, this.playerZ) : null;
+    const topItem = this.gameState.topCarried();
+    const carriedPoster = this.gameState.topCarriedPoster();
+    const nearestAnchor = carriedPoster ? this._nearestFreeAnchor(this.playerX, this.playerZ) : null;
+    const nearestSlot = topItem ? this._nearestEmptySlot(this.playerX, this.playerZ) : null;
 
-    if (nearestId) {
-      this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestId.id]}`;
+    if (nearestItem) {
+      this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestItem]}`;
       if (this.input.wasPressed('interact')) {
-        this.gameState.pickUp(nearestId.id);
-        this.scene.remove(this.itemMeshes.get(nearestId.id));
-        this.itemMeshes.delete(nearestId.id);
-        this.setToast(`Picked up the ${ITEM_LABELS[nearestId.id]}.`, 2);
+        this.gameState.pickUp(nearestItem);
+        this.setToast(`Picked up the ${ITEM_LABELS[nearestItem]}.`, 2);
         this.audio.playPickup();
       }
-    } else if (nearestSlot) {
-      this.prompt = `${this.input.promptFor('drop')} to place the ${ITEM_LABELS[carrying]} on the shelf`;
-    } else if (nearestInteractable) {
-      if (nearestInteractable.kind === 'ladder') {
+    } else if (nearestAnchor) {
+      // Hanging intent is more specific than looking at a neighbouring spot.
+      this.prompt = `${this.input.promptFor('drop')} to hang the ${ITEM_LABELS[carriedPoster]}`;
+      if (this.input.wasPressed('interact') && nearestSpot && nearestSpot.kind === 'detail') {
+        this.audio.playInteract();
+        this.onOpenDetail(nearestSpot.id);
+      }
+    } else if (nearestSpot) {
+      if (nearestSpot.kind === 'ladder') {
         this.prompt = `${this.input.promptFor('interact')} to climb out`;
         if (this.input.wasPressed('interact')) this.onClimbOut();
       } else {
-        this.prompt = `${this.input.promptFor('interact')} to look at the ${nearestInteractable.label}`;
+        this.prompt = `${this.input.promptFor('interact')} to look at the ${nearestSpot.label}`;
         if (this.input.wasPressed('interact')) {
           this.audio.playInteract();
-          this.onOpenModal(nearestInteractable.modal);
+          this.onOpenDetail(nearestSpot.id);
         }
       }
+    } else if (nearestSlot) {
+      this.prompt = `${this.input.promptFor('drop')} to place the ${ITEM_LABELS[topItem]} on the shelf`;
     } else {
       this.prompt = null;
     }
 
-    if (this.input.wasPressed('drop') && carrying) {
-      if (nearestSlot) {
-        this.gameState.drop(carrying, 'inventory', nearestSlot.x, nearestSlot.z);
-        this._syncItemMeshes();
-        this.setToast(`Sorted the ${ITEM_LABELS[carrying]} onto the shelf.`, 2);
+    if (this.input.wasPressed('drop') && topItem) {
+      if (nearestAnchor && carriedPoster) {
+        this.gameState.hangPoster(carriedPoster, nearestAnchor.index);
+        this.setToast(`Hung the ${ITEM_LABELS[carriedPoster]} back up.`, 2);
+        this.audio.playDrop();
+      } else if (nearestSlot) {
+        this.gameState.drop(topItem, 'inventory', nearestSlot.x, nearestSlot.z);
+        this.setToast(`Sorted the ${ITEM_LABELS[topItem]} onto the shelf.`, 2);
         this.audio.playDrop();
         this._checkTidyObjective();
       } else {
-        this.gameState.drop(carrying, 'inventory', this.playerX, this.playerZ);
-        this._syncItemMeshes();
-        this.setToast(`Put down the ${ITEM_LABELS[carrying]}.`, 2);
+        this.gameState.drop(topItem, 'inventory', this.playerX, this.playerZ);
+        this.setToast(`Put down the ${ITEM_LABELS[topItem]}.`, 2);
         this.audio.playDrop();
       }
     }
@@ -376,7 +580,11 @@ export class InventoryScene {
   }
 
   onResize() {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const aspect = window.innerWidth / window.innerHeight;
+    this.camera.left = (-FRUSTUM_HEIGHT * aspect) / 2;
+    this.camera.right = (FRUSTUM_HEIGHT * aspect) / 2;
+    this.camera.top = FRUSTUM_HEIGHT / 2;
+    this.camera.bottom = -FRUSTUM_HEIGHT / 2;
     this.camera.updateProjectionMatrix();
   }
 }

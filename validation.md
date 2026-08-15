@@ -16,103 +16,114 @@ npm run validate
 This produces `trace.zip` in the repo root. Inspect it with
 `npx playwright show-trace trace.zip` or by dragging it onto
 https://trace.playwright.dev — every step below appears as a named step in
-the trace, with DOM snapshots and screenshots.
+the trace, with screenshots of the actual gameplay.
 
-Console errors are collected for the entire run; the final assertion (V18)
-fails if any occurred at any point.
+The entire spec runs in a touch-capable browser context (`hasTouch: true`),
+so the touch UI is visible in every screenshot; V21 exercises it directly.
+Console errors are collected for the whole run; V20 fails if any occurred.
 
 ---
 
-## Boot & start
+## Boot: the title poster
 
-- **V1 — The game boots.** Loading the page shows the start overlay with the
-  title "Box & Bones" and a Begin button. Nothing else is interactive yet.
-- **V2 — Begin starts the game inside the box.** Clicking Begin hides the
-  overlay. The player is in the inventory-box room (top-down scene), the
-  HUD reads "Inside The Box", the audio context is running, and the box
-  music track (the music-box loop) is the active track.
+- **V1 — The game boots into a detailed view of the title poster.** There is
+  no separate menu screen: on load the camera is already zoomed onto the
+  "Box & Bones" poster hanging in the box, with its readable panel open and
+  a BEGIN button. The view cannot be dismissed without pressing BEGIN.
+- **V2 — BEGIN zooms out into the box.** Pressing BEGIN closes the panel and
+  the camera pulls back from the poster into the game's normal view of the
+  box: an **isometric, orthographic** overhead view of the room, with the
+  player avatar visible. Audio starts (context running, music-box track).
 
-## The inventory box room
+## The box: detailed views
 
-- **V3 — How To Play poster.** Walking near the poster shows an interact
-  prompt naming it; pressing E opens a modal whose content explains the
-  game. Escape closes it.
-- **V4 — Controls poster with live rebinding.** The Controls modal lists
+Interacting (E / USE) with anything readable in the box does not pop a menu
+— the camera physically flies up to the object, then its readable panel
+fades in over it ("detailed view"). Closing it flies the camera back out to
+the isometric follow view. In the box, movement is free-roaming and
+screen-relative (up walks toward the top of the screen).
+
+- **V3 — How To Play poster.** Near the poster the prompt names it; USE
+  zooms into the poster and opens its panel explaining the game. Escape
+  closes it and returns the camera to the follow view.
+- **V4 — Controls poster with live rebinding.** The Controls detail lists
   every action with its current key. Clicking a binding then pressing a new
-  key rebinds it (the button label updates, the binding persists to
-  localStorage); rebinding back restores the original.
-- **V5 — Settings poster.** The Settings modal has a Music Volume slider,
-  a Sound Effects Volume slider, and a Mute checkbox. Moving the music
-  slider changes the audio engine's music volume and persists it. A
-  Reset Save Data button exists.
-- **V6 — Bulletin board with objectives.** The bulletin-board modal lists
-  pinned objectives. On a fresh game the first objective is
-  "Find your way to the end of the maze", not yet completed.
-- **V7 — Desk.** The desk modal shows a ledger: current maze layer, full
-  runs completed, and items carried.
-- **V8 — Shelves hold the compass and map.** The shelf has discrete slots.
-  On a fresh game the Compass and Map rest on shelf slots. Walking near an
-  item and pressing E picks it up; carried items appear as HUD slot icons.
-- **V9 — Sorting items back onto shelves.** While carrying an item, standing
-  near an empty shelf slot changes the drop prompt to a "place on the
-  shelf" action; pressing Q snaps the item exactly onto that slot's
-  coordinates. Picking a shelved item up adds a "Return everything to its
-  place on the shelf" objective, which is marked done once every shelvable
-  item is back on a slot.
-- **V10 — Free drop.** Pressing Q away from any shelf slot places the
-  carried item on the floor at the player's position (no snapping).
+  key rebinds it (persisted to localStorage); rebinding back restores it.
+- **V5 — Settings poster.** Music Volume and Sound Effects Volume sliders,
+  a Mute checkbox, and a Reset Save Data button. Moving the music slider
+  changes the audio engine's volume and persists it.
+- **V6 — Bulletin board.** Lists pinned objectives; on a fresh game the
+  first is "Find your way to the end of the maze", not completed.
+- **V7 — Desk.** A ledger: current maze layer, full runs completed, items
+  carried.
+
+## Movable posters
+
+- **V8 — Posters come off the wall.** A poster's detailed view has a
+  "Take it off the wall" button: pressing it closes the view with the
+  poster now carried (rolled up). Dropping it away from the wall lays a
+  rolled scroll on the floor; picking it back up and standing at an empty
+  wall hook turns the drop prompt into a "hang" action that puts it back
+  on the wall. (The title poster is fixed and cannot be removed.)
+
+## Items & shelves
+
+- **V9 — Shelves hold the compass and map.** On a fresh game both rest on
+  shelf slots; USE picks them up and carried items appear as HUD icons.
+- **V10 — Sorting items back onto shelves.** Carrying items, standing near
+  an empty shelf slot changes the drop prompt to a "place on the shelf"
+  action for the most recently picked-up item; Q snaps it onto the slot.
+  Taking shelf items adds a "Return everything to its place on the shelf"
+  objective, marked done once compass and map are both back on slots.
+- **V11 — Item detailed views.** Tapping a carried item's HUD icon opens
+  its detailed view: the Map shows a large hand-drawn chart of every maze
+  cell explored so far; the Compass shows its face up close. These work in
+  both scenes.
+- **V12 — Free drop.** Q away from shelves and hooks places the most
+  recently picked-up carried item on the floor at the player's position.
 
 ## Transition
 
-- **V11 — Ladder climbs out of the box.** Near the ladder the prompt offers
-  to climb out; pressing E (or I anywhere in the box) plays the
-  flatten/unflatten transition (the viewport element has a CSS transform
-  transition configured for the flatten effect) and lands the player in the
-  maze. The music crossfades from the box track to the maze track.
+- **V13 — Climbing out flattens the world.** At the ladder, USE plays the
+  in-engine transition: the screen dips to black while the outgoing view
+  animates (the box camera dives onto the player; in the other direction
+  the maze dolly-zooms to a flattened telephoto crush), then the incoming
+  scene animates out to its natural framing. The player lands in the
+  first-person maze with its camera restored to the normal field of view,
+  and the music crossfades to the maze track.
 
 ## The maze
 
-- **V12 — Tile-stepped movement.** The maze is first-person and grid-based:
-  a tap of W moves exactly one cell in the facing direction, S exactly one
-  cell backward, A/D turn exactly 90° left/right in place (yaw matches the
-  new facing). Attempting to step into a wall moves zero cells (bump).
-- **V13 — Compass and map overlays.** While the compass is carried and
-  active, the compass dial is visible in the maze HUD. While the map is
-  carried and active, the minimap is visible and draws explored cells.
-  Keys 1 / 2 toggle the compass / minimap respectively.
-- **V14 — Talisman-style nested layers.** Reaching the maze exit extends
-  the maze outward: layer 1 → 2 → 3, with the world's half-extent growing
-  (3 → 7 → 11 cells) and a new "Escape maze layer N" objective added each
-  time. Completing layer 3 finishes the run: the run counter increments,
-  the maze resets to a fresh layer 1, and objectives reset.
-  *Method note: the spec validates this logic-level — it teleports the
-  player's logical cell to the exit rather than pathfinding the whole maze,
-  because walking three full layers is impractical under headless frame
-  throttling. The movement rules themselves are covered by V12.*
-- **V15 — Items can be dropped in the maze.** Pressing Q in the maze drops
-  the carried item at the player's position, recorded as located in the
-  maze; walking near it again offers pickup with E.
-- **V16 — I returns to the box.** Pressing I in the maze plays the
-  transition back; the player is in the box room again and the box music
-  track resumes.
+- **V14 — Tile-stepped movement.** First-person and grid-based: W steps
+  exactly one cell along the facing, S one cell back, A/D turn exactly 90°
+  in place. Stepping into a wall moves zero cells (bump).
+- **V15 — Compass and map overlays.** While carried and active, the compass
+  dial and minimap are visible in the maze HUD; keys 1 / 2 toggle them.
+- **V16 — Talisman-style nested layers.** Reaching the exit extends the
+  maze outward: layer 1 → 2 → 3 (half-extent 3 → 7 → 11) with an
+  "Escape maze layer N" objective each time; completing layer 3 increments
+  the run counter and resets to a fresh layer 1.
+  *Method note: validated logic-level by teleporting the player's logical
+  cell to the exit; the movement rules themselves are covered by V14.*
+- **V17 — Items can be dropped in the maze.** Q drops the most recent
+  carried item at the player's position (posters lie as rolled scrolls);
+  walking near it offers pickup with USE.
+- **V18 — I returns to the box.** The reverse transition plays and the box
+  music resumes in the isometric view.
 
 ## Audio & persistence
 
-- **V17 — Mute toggle.** Pressing M mutes all audio (master gain 0,
-  persisted); pressing M again unmutes.
-- **V18 — Persistence and zero errors.** Game state (scene, layer,
-  objectives, item locations, carried items) is persisted to localStorage
-  under `box-and-bones:save`. No console errors or page errors occurred at
-  any point during the entire run.
+- **V19 — Mute toggle.** M mutes all audio (master gain 0, persisted);
+  M again unmutes.
+- **V20 — Persistence and zero errors.** Game state (scene, layer,
+  objectives, item locations incl. poster wall positions, carried items)
+  persists to localStorage under `box-and-bones:save`. No console or page
+  errors occurred during the entire run.
 
 ## Touch
 
-- **V19 — Touch controls make the game phone-playable.** On a device with
-  a touch screen, an on-screen D-pad and USE / DROP / BOX buttons appear
-  automatically. Holding the D-pad walks the player in the box; the BOX
-  button climbs out through the transition; holding ▲ in the maze steps one
-  cell, ◀ turns. The buttons route through the current key bindings, so
-  rebinding keys re-routes touch input too.
-  *Method note: the entire spec runs in a touch-capable browser context
-  (`hasTouch: true`), so the touch UI is visible in every trace screenshot;
-  V19 then drives the buttons directly via pointer events.*
+- **V21 — Touch controls drive both scenes.** On a touch screen an
+  on-screen D-pad and USE / DROP / BOX buttons appear. Holding the D-pad
+  walks the player in the box; BOX climbs out through the transition;
+  holding ▲ in the maze steps one cell and ◀ turns 90°. Buttons route
+  through the current key bindings, so rebinding re-routes touch too.

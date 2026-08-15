@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { MazeWorld, CELL_SIZE, WALL_HEIGHT } from './MazeGenerator.js';
 import { createWallTexture, createFloorTexture, createCeilingTexture } from './textures.js';
+import { POSTER_IDS, ITEM_LABELS } from '../core/GameState.js';
+
+const BASE_FOV = 72;
+const FLAT_FOV = 16;
+const DOLLY_BACK = 2.4;
 
 const WALL_THICKNESS = 0.25;
 const PLAYER_HEIGHT = 1.65;
@@ -38,7 +43,24 @@ const ITEM_MESH_DEFS = {
   },
 };
 
-const ITEM_LABELS = { compass: 'Compass', map: 'Map' };
+// Posters dropped in the maze lie on the floor as rolled scrolls.
+for (const posterId of POSTER_IDS) {
+  ITEM_MESH_DEFS[posterId] = () => {
+    const group = new THREE.Group();
+    const paper = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, 0.66, 10),
+      new THREE.MeshStandardMaterial({ color: 0xe6d9b2 })
+    );
+    paper.rotation.z = Math.PI / 2;
+    const band = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.11, 0.13, 10),
+      new THREE.MeshStandardMaterial({ color: 0x8a4a2a })
+    );
+    band.rotation.z = Math.PI / 2;
+    group.add(paper, band);
+    return group;
+  };
+}
 
 export class MazeScene {
   constructor({ gameState, input, audio, onLayerComplete, onRunComplete, onRequestBox }) {
@@ -53,8 +75,9 @@ export class MazeScene {
     this.scene.background = new THREE.Color(0x14121a);
     this.scene.fog = new THREE.Fog(0x14121a, 7, 24);
 
-    this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.1, 100);
     this.camera.rotation.order = 'YXZ';
+    this.transitionBack = 0;
 
     this.world = new MazeWorld();
 
@@ -224,7 +247,7 @@ export class MazeScene {
       const build = ITEM_MESH_DEFS[id];
       if (!build) continue;
       const mesh = build();
-      mesh.position.set(loc.x, 0.4, loc.z);
+      mesh.position.set(loc.x, POSTER_IDS.includes(id) ? 0.14 : 0.4, loc.z);
       this.scene.add(mesh);
       this.itemMeshes.set(id, mesh);
     }
@@ -299,9 +322,7 @@ export class MazeScene {
 
     this.visitedCells.add(`${this.cellX},${this.cellY}`);
 
-    this.camera.position.set(this.playerX, PLAYER_HEIGHT, this.playerZ);
-    this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = 0;
+    this._applyCamera();
     this.torch.position.set(this.playerX, PLAYER_HEIGHT, this.playerZ);
 
     this._handleInteractions();
@@ -335,8 +356,7 @@ export class MazeScene {
     }
 
     if (this.input.wasPressed('drop')) {
-      const order = ['compass', 'map'];
-      const toDrop = order.find((id) => this.gameState.hasItem(id));
+      const toDrop = this.gameState.topCarried();
       if (toDrop) {
         this.gameState.drop(toDrop, 'maze', this.playerX, this.playerZ);
         this._syncItemMeshes();
@@ -394,6 +414,44 @@ export class MazeScene {
       exit: this.world.exit,
       halfExtent: this.world.halfExtent,
     };
+  }
+
+  _applyCamera() {
+    // Forward vector for the current yaw (yaw 0 looks down -z).
+    const fx = -Math.sin(this.yaw);
+    const fz = -Math.cos(this.yaw);
+    this.camera.position.set(
+      this.playerX - fx * this.transitionBack,
+      PLAYER_HEIGHT,
+      this.playerZ - fz * this.transitionBack
+    );
+    this.camera.rotation.y = this.yaw;
+    this.camera.rotation.x = 0;
+  }
+
+  // Dolly-zoom "flatten": narrowing the FOV while pulling the camera back
+  // crushes the perspective until the corridor reads as a flat picture —
+  // the world going 2D as you shrink into the box (and the reverse on the
+  // way out).
+  transitionOut(t) {
+    this.camera.fov = BASE_FOV - (BASE_FOV - FLAT_FOV) * t;
+    this.transitionBack = DOLLY_BACK * t;
+    this.camera.updateProjectionMatrix();
+    this._applyCamera();
+  }
+
+  transitionIn(t) {
+    this.camera.fov = FLAT_FOV + (BASE_FOV - FLAT_FOV) * t;
+    this.transitionBack = DOLLY_BACK * (1 - t);
+    this.camera.updateProjectionMatrix();
+    this._applyCamera();
+  }
+
+  transitionReset() {
+    this.camera.fov = BASE_FOV;
+    this.transitionBack = 0;
+    this.camera.updateProjectionMatrix();
+    this._applyCamera();
   }
 
   onResize() {

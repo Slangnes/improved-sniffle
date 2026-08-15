@@ -1,13 +1,31 @@
 const STORAGE_KEY = 'box-and-bones:save';
 
+// Items that live on shelf slots when the game starts; putting them all back
+// completes the tidy objective.
+const SHELVED_ITEM_IDS = ['compass', 'map'];
+
+// Posters that hang on wall anchors and can be taken down, carried rolled
+// up, dropped, shelved, or re-hung. The title poster is fixed to the wall.
+export const POSTER_IDS = ['poster-howto', 'poster-controls', 'poster-settings'];
+
+export const ITEM_LABELS = {
+  compass: 'Compass',
+  map: 'Map',
+  'poster-howto': 'How To Play poster',
+  'poster-controls': 'Controls poster',
+  'poster-settings': 'Settings poster',
+};
+
 // Must match InventoryScene's shelf slot coordinates (slots 0 and 1) so items
-// start out actually resting on the shelf.
+// start out actually resting on the shelf. Posters start on wall anchors
+// matching their POSTER_IDS index.
 const DEFAULT_ITEM_HOMES = {
   compass: { scene: 'inventory', x: -5.47, z: -2 },
   map: { scene: 'inventory', x: -5.47, z: -0.7 },
+  'poster-howto': { scene: 'inventory-wall', anchor: 0 },
+  'poster-controls': { scene: 'inventory-wall', anchor: 1 },
+  'poster-settings': { scene: 'inventory-wall', anchor: 2 },
 };
-
-const SHELVED_ITEM_IDS = ['compass', 'map'];
 
 export class GameState {
   constructor() {
@@ -17,15 +35,22 @@ export class GameState {
     this.scene = saved?.scene ?? 'inventory';
     this.mazeLayer = saved?.mazeLayer ?? 1;
     this.runsCompleted = saved?.runsCompleted ?? 0;
-    this.carried = new Set(saved?.carried ?? []);
+    // Carried items in pickup order — drops release the most recent first.
+    this.carried = Array.isArray(saved?.carried) ? [...saved.carried] : [];
     this.activeCompass = saved?.activeCompass ?? true;
     this.activeMap = saved?.activeMap ?? true;
     this.itemLocations = saved?.itemLocations ?? JSON.parse(JSON.stringify(DEFAULT_ITEM_HOMES));
+    // Older saves predate movable posters: hang any poster that has no
+    // recorded location and is not carried.
+    for (const id of POSTER_IDS) {
+      if (!this.itemLocations[id] && !this.carried.includes(id)) {
+        this.itemLocations[id] = JSON.parse(JSON.stringify(DEFAULT_ITEM_HOMES[id]));
+      }
+    }
     this.objectives = saved?.objectives ?? [
       { id: 'escape-1', text: 'Find your way to the end of the maze', done: false },
     ];
     this.stepsTaken = saved?.stepsTaken ?? 0;
-    this.hasEnteredMazeBefore = saved?.hasEnteredMazeBefore ?? false;
   }
 
   _load() {
@@ -48,7 +73,6 @@ export class GameState {
       itemLocations: this.itemLocations,
       objectives: this.objectives,
       stepsTaken: this.stepsTaken,
-      hasEnteredMazeBefore: this.hasEnteredMazeBefore,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }
@@ -64,11 +88,24 @@ export class GameState {
   }
 
   hasItem(id) {
-    return this.carried.has(id);
+    return this.carried.includes(id);
+  }
+
+  // Most recently picked-up carried item (what Q releases first).
+  topCarried() {
+    return this.carried.length ? this.carried[this.carried.length - 1] : null;
+  }
+
+  // Most recently picked-up carried poster, if any.
+  topCarriedPoster() {
+    for (let i = this.carried.length - 1; i >= 0; i--) {
+      if (POSTER_IDS.includes(this.carried[i])) return this.carried[i];
+    }
+    return null;
   }
 
   pickUp(id) {
-    this.carried.add(id);
+    if (!this.carried.includes(id)) this.carried.push(id);
     delete this.itemLocations[id];
     if (SHELVED_ITEM_IDS.includes(id)) {
       this.addObjective('tidy-shelf', 'Return everything to its place on the shelf');
@@ -77,9 +114,23 @@ export class GameState {
   }
 
   drop(id, sceneName, x, z) {
-    this.carried.delete(id);
+    this.carried = this.carried.filter((c) => c !== id);
     this.itemLocations[id] = { scene: sceneName, x, z };
     this._notify();
+  }
+
+  hangPoster(id, anchorIndex) {
+    this.carried = this.carried.filter((c) => c !== id);
+    this.itemLocations[id] = { scene: 'inventory-wall', anchor: anchorIndex };
+    this._notify();
+  }
+
+  posterOnAnchor(anchorIndex) {
+    for (const id of POSTER_IDS) {
+      const loc = this.itemLocations[id];
+      if (loc?.scene === 'inventory-wall' && loc.anchor === anchorIndex) return id;
+    }
+    return null;
   }
 
   itemLocationIn(sceneName) {

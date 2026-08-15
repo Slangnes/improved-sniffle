@@ -4,7 +4,7 @@ import { GameState } from './core/GameState.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { MazeScene } from './maze/MazeScene.js';
 import { InventoryScene } from './inventory/InventoryScene.js';
-import { ModalManager } from './ui/Modal.js';
+import { DetailView } from './ui/DetailView.js';
 import { FlattenTransition } from './transition/FlattenTransition.js';
 import { TouchControls } from './ui/TouchControls.js';
 import * as HUD from './ui/HUD.js';
@@ -18,9 +18,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const input = new InputManager();
 const gameState = new GameState();
 const audio = new AudioManager();
-const modal = new ModalManager({ input, gameState, audio });
 const transition = new FlattenTransition();
 const touchControls = new TouchControls({ input });
+const detailView = new DetailView({ input, gameState, audio });
 
 let current;
 
@@ -28,7 +28,7 @@ const inventoryScene = new InventoryScene({
   gameState,
   input,
   audio,
-  onOpenModal: (id) => modal.open(id),
+  onOpenDetail: (id) => detailView.open(id),
   onClimbOut: () => toggleBox(),
 });
 
@@ -43,14 +43,33 @@ const mazeScene = new MazeScene({
 
 current = inventoryScene;
 gameState.setScene('inventory');
+document.body.classList.add('in-box');
+
+const clock = new THREE.Clock(false);
+
+detailView.attach({
+  inventoryScene,
+  mazeScene,
+  onBegin: () => {
+    clock.start();
+    audio.init();
+    audio.resume();
+    audio.startMusic('box');
+  },
+});
+
+// The game opens on the title poster's detailed view; Begin zooms out
+// into the isometric box.
+detailView.openBoot();
 
 async function toggleBox() {
-  if (transition.playing || modal.isOpen()) return;
+  if (transition.playing || detailView.isOpen()) return;
   const goingToMaze = current === inventoryScene;
   audio.playClimb();
-  await transition.play(() => {
+  await transition.play(current, goingToMaze ? mazeScene : inventoryScene, () => {
     current = goingToMaze ? mazeScene : inventoryScene;
     gameState.setScene(goingToMaze ? 'maze' : 'inventory');
+    document.body.classList.toggle('in-box', !goingToMaze);
     current.onResize();
     audio.startMusic(goingToMaze ? 'maze' : 'box');
   });
@@ -62,21 +81,19 @@ window.addEventListener('resize', () => {
   mazeScene.onResize();
 });
 
-document.getElementById('start-button').addEventListener('click', () => {
-  document.getElementById('start-overlay').classList.add('hidden');
-  clock.start();
-  audio.init();
-  audio.resume();
-  audio.startMusic('box');
+HUD.setSlotTapHandler((id) => {
+  if (transition.playing) return;
+  detailView.openItem(id);
 });
-
-const clock = new THREE.Clock(false);
 
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.running ? clock.getDelta() : 0, 0.05);
 
-  if (clock.running && !modal.isOpen() && !transition.playing) {
+  transition.update(dt);
+  detailView.update(dt);
+
+  if (clock.running && !detailView.isOpen() && !transition.playing) {
     current.update(dt);
   } else {
     input.endFrame();
@@ -85,7 +102,7 @@ function frame() {
   renderer.render(current.scene, current.camera);
 
   HUD.updateModeAndObjective(gameState.scene, gameState);
-  HUD.updateSlots(gameState, input);
+  HUD.updateSlots(gameState);
   HUD.setPrompt(current.toastMessage || current.prompt);
 
   const compassOn = gameState.hasItem('compass') && gameState.activeCompass;
@@ -102,7 +119,7 @@ function frame() {
 }
 
 window.addEventListener('keydown', (e) => {
-  if (modal.isOpen()) return;
+  if (detailView.isOpen()) return;
   if (input.bindings.slot1 === e.code && gameState.hasItem('compass')) {
     gameState.activeCompass = !gameState.activeCompass;
     gameState.save();
@@ -120,4 +137,16 @@ window.addEventListener('keydown', (e) => {
 
 frame();
 
-window.__box = { gameState, input, audio, touchControls, inventoryScene, mazeScene, get current() { return current; } };
+window.__box = {
+  gameState,
+  input,
+  audio,
+  touchControls,
+  detailView,
+  transition,
+  inventoryScene,
+  mazeScene,
+  get current() {
+    return current;
+  },
+};

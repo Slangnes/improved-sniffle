@@ -1,3 +1,5 @@
+import { ITEM_LABELS, POSTER_IDS } from '../core/GameState.js';
+
 const modeLabel = document.getElementById('hud-mode');
 const objectiveLabel = document.getElementById('hud-objective');
 const slotsWrap = document.getElementById('hud-slots');
@@ -7,40 +9,42 @@ const minimapCanvas = document.getElementById('minimap');
 const compassWrap = document.getElementById('compass-wrap');
 const compassNeedle = document.getElementById('compass-needle');
 
+const SLOT_ICONS = { compass: '⟐', map: '⚑' };
+for (const id of POSTER_IDS) SLOT_ICONS[id] = '☰';
+
+let slotTapHandler = null;
+
+// Tapping a carried item's icon opens its detailed view.
+export function setSlotTapHandler(fn) {
+  slotTapHandler = fn;
+}
+
+slotsWrap.addEventListener('click', (e) => {
+  const id = e.target.closest('.slot')?.dataset.item;
+  if (id && slotTapHandler) slotTapHandler(id);
+});
+
 export function updateModeAndObjective(sceneName, gameState) {
   modeLabel.textContent = sceneName === 'maze' ? 'The Maze' : 'Inside The Box';
   objectiveLabel.textContent = gameState.currentObjectiveText();
 }
 
-// Tapping a slot icon toggles that overlay — same path as pressing its key.
-slotsWrap.addEventListener('click', (e) => {
-  const code = e.target.closest('.slot')?.dataset.code;
-  if (!code) return;
-  window.dispatchEvent(new KeyboardEvent('keydown', { code }));
-  window.dispatchEvent(new KeyboardEvent('keyup', { code }));
-});
-
 let slotsCacheKey = null;
 
-export function updateSlots(gameState, input) {
-  const defs = [
-    { id: 'compass', key: 'slot1', icon: '⟐', active: gameState.activeCompass },
-    { id: 'map', key: 'slot2', icon: '⚑', active: gameState.activeMap },
-  ];
-  const cacheKey = defs
-    .map((d) => (gameState.hasItem(d.id) ? `${d.id}:${d.active ? 1 : 0}:${input.bindings[d.key]}` : ''))
-    .join('|');
+export function updateSlots(gameState) {
+  const activeFor = (id) =>
+    id === 'compass' ? gameState.activeCompass : id === 'map' ? gameState.activeMap : false;
+  const cacheKey = gameState.carried.map((id) => `${id}:${activeFor(id) ? 1 : 0}`).join('|');
   if (cacheKey === slotsCacheKey) return;
   slotsCacheKey = cacheKey;
 
   slotsWrap.innerHTML = '';
-  for (const d of defs) {
-    if (!gameState.hasItem(d.id)) continue;
+  for (const id of gameState.carried) {
     const el = document.createElement('div');
-    el.className = 'slot' + (d.active ? ' active' : '');
-    el.textContent = d.icon;
-    el.title = `${d.id} (${input.keyLabel(d.key)})`;
-    el.dataset.code = input.bindings[d.key];
+    el.className = 'slot' + (activeFor(id) ? ' active' : '');
+    el.textContent = SLOT_ICONS[id] || '?';
+    el.title = ITEM_LABELS[id] || id;
+    el.dataset.item = id;
     slotsWrap.appendChild(el);
   }
 }
@@ -67,9 +71,13 @@ export function setMinimapVisible(visible) {
   minimapWrap.classList.toggle('hidden', !visible);
 }
 
-export function drawMinimap({ cells, visited, player, exit, halfExtent }) {
-  const ctx = minimapCanvas.getContext('2d');
-  const size = minimapCanvas.width;
+export function drawMinimap(data) {
+  drawMinimapInto(minimapCanvas, data);
+}
+
+export function drawMinimapInto(canvas, { cells, visited, player, exit, halfExtent }) {
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
   ctx.clearRect(0, 0, size, size);
   ctx.fillStyle = 'rgba(5,5,10,0.6)';
   ctx.fillRect(0, 0, size, size);

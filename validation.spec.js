@@ -6,8 +6,13 @@
 // runs this spec against `vite preview` with tracing on, and copies the
 // resulting trace to ./trace.zip for inspection.
 //
-// The game exposes `window.__box` (game state, scenes, audio) for exactly
-// this kind of instrumentation.
+// The game exposes `window.__box` (game state, scenes, audio, detail view,
+// transition) for exactly this kind of instrumentation.
+//
+// Headless rendering throttles requestAnimationFrame heavily and the game
+// clamps dt per frame, so camera tweens and scene transitions take several
+// times their nominal duration here — every wait polls game state with
+// generous timeouts instead of assuming frame timing.
 
 import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
@@ -17,8 +22,8 @@ const BASE = 'http://localhost:4173/';
 
 test.use({
   viewport: { width: 1280, height: 800 },
-  // Run the whole suite in a touch-capable context (per validation.md V19):
-  // the touch UI is visible in every trace screenshot, and V19 exercises it.
+  // Run the whole suite in a touch-capable context (per validation.md):
+  // the touch UI is visible in every trace screenshot, and V21 exercises it.
   hasTouch: true,
   // Always record a trace with screenshots. Per-action DOM snapshots are
   // disabled: the game renders to a canvas (snapshots show nothing useful)
@@ -57,8 +62,11 @@ test.afterAll(() => {
   server?.kill();
 });
 
-// Headless rendering can throttle requestAnimationFrame heavily, so all
-// movement helpers poll game state instead of assuming frame timing.
+// Box movement is screen-relative in the isometric view: "up" walks toward
+// the top of the screen, which in world space is (-1,-1)/sqrt2. Derive key
+// presses by projecting the desired world direction onto the screen axes.
+const ISO_F = { x: -Math.SQRT1_2, z: -Math.SQRT1_2 }; // screen-up in world
+const ISO_R = { x: Math.SQRT1_2, z: -Math.SQRT1_2 }; // screen-right in world
 
 async function walkTo(page, targetX, targetZ, timeoutMs = 60000) {
   const start = Date.now();
@@ -72,11 +80,13 @@ async function walkTo(page, targetX, targetZ, timeoutMs = 60000) {
     const dz = targetZ - p.z;
     if (Math.hypot(dx, dz) < 0.3) return;
     lastPos = p;
+    const fwd = dx * ISO_F.x + dz * ISO_F.z;
+    const right = dx * ISO_R.x + dz * ISO_R.z;
     const keys = [];
-    if (dz > 0.2) keys.push('KeyS');
-    if (dz < -0.2) keys.push('KeyW');
-    if (dx > 0.2) keys.push('KeyD');
-    if (dx < -0.2) keys.push('KeyA');
+    if (fwd > 0.15) keys.push('KeyW');
+    if (fwd < -0.15) keys.push('KeyS');
+    if (right > 0.15) keys.push('KeyD');
+    if (right < -0.15) keys.push('KeyA');
     for (const k of keys) await page.keyboard.down(k);
     await page.waitForTimeout(100);
     for (const k of keys) await page.keyboard.up(k);
@@ -86,10 +96,21 @@ async function walkTo(page, targetX, targetZ, timeoutMs = 60000) {
   );
 }
 
-// Hold a key just until the maze registers the step/turn (cell or facing
-// changes), release, then wait for the tween to finish. Guarantees exactly
-// one grid action per call regardless of frame rate.
-async function mazeAction(page, key, changed, maxHoldMs = 1500) {
+// Open a world object's detailed view with USE and wait for its panel
+// (the camera flies to the object first, which takes a while throttled).
+async function openDetail(page) {
+  await page.keyboard.press('e');
+  await expect(page.locator('#modal-layer')).toBeVisible({ timeout: 20000 });
+}
+
+async function closeDetail(page) {
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.__box.detailView.isOpen(), null, { timeout: 20000 });
+}
+
+// Hold a key just until the maze registers the step/turn, release, then
+// wait for the tween. Guarantees exactly one grid action per call.
+async function mazeAction(page, key, changed, maxHoldMs = 2000) {
   await page.keyboard.down(key);
   const start = Date.now();
   let didChange = false;
@@ -112,8 +133,6 @@ const mazeCell = (page) =>
     facing: window.__box.mazeScene.facing,
   }));
 
-// Snapshot the pre-action cell/facing inside the page so hold-until-changed
-// predicates can compare against it.
 const markMaze = (page) =>
   page.evaluate(() => {
     const m = window.__box.mazeScene;
@@ -129,7 +148,7 @@ const mazeFacingChanged = () =>
   window.__box.mazeScene.facing !== window.__box.mazeScene.__vFacing;
 
 test('validation.md contract', async ({ page }) => {
-  test.setTimeout(480000);
+  test.setTimeout(600000);
 
   const errors = [];
   page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
@@ -137,64 +156,71 @@ test('validation.md contract', async ({ page }) => {
     if (msg.type() === 'error') errors.push(`CONSOLE: ${msg.text()}`);
   });
 
-  await test.step('V1: game boots to the start overlay', async () => {
+  await test.step('V1: boots into the title poster detailed view', async () => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
-    await expect(page.locator('#start-overlay')).toBeVisible();
-    await expect(page.locator('#start-overlay h1')).toHaveText(/Box & Bones/);
-    await expect(page.locator('#start-button')).toBeVisible();
+    await expect(page.locator('#modal-layer')).toBeVisible();
+    await expect(page.locator('#modal-content')).toContainText('Box & Bones');
+    await expect(page.locator('#detail-begin')).toBeVisible();
+    expect(await page.evaluate(() => window.__box.detailView.isOpen())).toBe(true);
+    // Cannot be dismissed before BEGIN.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__box.detailView.isOpen())).toBe(true);
   });
 
-  await test.step('V2: Begin starts inside the box with music running', async () => {
-    await page.click('#start-button');
-    await expect(page.locator('#start-overlay')).toBeHidden();
-    await page.waitForFunction(() => window.__box?.gameState.scene === 'inventory');
+  await test.step('V2: BEGIN zooms out into the isometric box', async () => {
+    await page.click('#detail-begin');
+    await page.waitForFunction(() => !window.__box.detailView.isOpen(), null, { timeout: 20000 });
+    expect(await page.evaluate(() => window.__box.gameState.scene)).toBe('inventory');
     await expect(page.locator('#hud-mode')).toHaveText(/inside the box/i);
-    const audio = await page.evaluate(() => ({
+    const cam = await page.evaluate(() => ({
+      ortho: window.__box.inventoryScene.camera.isOrthographicCamera,
+      zoom: window.__box.inventoryScene.camera.zoom,
       ctxState: window.__box.audio.ctx?.state,
       track: window.__box.audio._currentTrack,
     }));
-    expect(audio.ctxState).toBe('running');
-    expect(audio.track).toBe('box');
+    expect(cam.ortho).toBe(true);
+    expect(Math.abs(cam.zoom - 1)).toBeLessThan(0.05);
+    expect(cam.ctxState).toBe('running');
+    expect(cam.track).toBe('box');
   });
 
-  await test.step('V3: How To Play poster opens an explanatory modal', async () => {
-    await walkTo(page, -4.5, -4.0);
+  await test.step('V3: How To Play poster opens as a camera-zoom detailed view', async () => {
+    await walkTo(page, -4.5, -3.6);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
-      .toContain('How To Play');
-    await page.keyboard.press('e');
-    await expect(page.locator('#modal-layer')).toBeVisible();
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
+      .toContain('How To Play poster');
+    expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(false);
+    await openDetail(page);
+    expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(true);
     await expect(page.locator('#modal-content')).toContainText('How To Play');
     await expect(page.locator('#modal-content')).toContainText('maze');
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#modal-layer')).toBeHidden();
+    await closeDetail(page);
+    expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(false);
   });
 
   await test.step('V4: Controls poster rebinds keys live', async () => {
-    await walkTo(page, -1.4, -4.0);
-    await page.keyboard.press('e');
+    await walkTo(page, -1.4, -3.6);
+    await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Controls');
     const dropRow = page.locator('.keybind-row', { hasText: 'Drop Item' });
     await expect(dropRow.locator('button.rebind')).toHaveText('Q');
     await dropRow.locator('button.rebind').click();
     await page.keyboard.press('p');
     await expect(dropRow.locator('button.rebind')).toHaveText('P');
-    expect(
-      await page.evaluate(() => window.__box.input.bindings.drop)
-    ).toBe('KeyP');
+    expect(await page.evaluate(() => window.__box.input.bindings.drop)).toBe('KeyP');
     expect(
       await page.evaluate(() => JSON.parse(localStorage.getItem('box-and-bones:bindings')).drop)
     ).toBe('KeyP');
-    // rebind back so the rest of the run uses Q
     await dropRow.locator('button.rebind').click();
     await page.keyboard.press('q');
     await expect(dropRow.locator('button.rebind')).toHaveText('Q');
-    await page.keyboard.press('Escape');
+    await closeDetail(page);
   });
 
   await test.step('V5: Settings poster has volume sliders and mute', async () => {
-    await walkTo(page, 1.7, -4.0);
-    await page.keyboard.press('e');
+    await walkTo(page, 1.7, -3.6);
+    await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Settings');
     const musicRow = page.locator('.keybind-row', { hasText: 'Music Volume' });
     await expect(musicRow.locator('input[type=range]')).toBeVisible();
@@ -211,33 +237,64 @@ test('validation.md contract', async ({ page }) => {
     });
     expect(await page.evaluate(() => window.__box.audio.musicVolume)).toBe(0.2);
     expect(await page.evaluate(() => localStorage.getItem('box-and-bones:musicVolume'))).toBe('0.2');
-    await page.keyboard.press('Escape');
+    await closeDetail(page);
   });
 
   await test.step('V6: bulletin board shows the starting objective', async () => {
-    await walkTo(page, 4.6, -4.0);
-    await page.keyboard.press('e');
+    await walkTo(page, 4.6, -3.6);
+    await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Bulletin Board');
     await expect(page.locator('#modal-content')).toContainText('Find your way to the end of the maze');
     const objectives = await page.evaluate(() => window.__box.gameState.objectives);
     expect(objectives[0].done).toBe(false);
-    await page.keyboard.press('Escape');
+    await closeDetail(page);
   });
 
   await test.step('V7: desk shows the ledger', async () => {
-    // Stand beside the desk (its centre is inside its own collider).
     await walkTo(page, 4.4, 1.8);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
       .toContain('Desk');
-    await page.keyboard.press('e');
+    await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Desk');
     await expect(page.locator('#modal-content')).toContainText('Current maze layer');
     await expect(page.locator('#modal-content')).toContainText('Full runs completed');
-    await page.keyboard.press('Escape');
+    await closeDetail(page);
   });
 
-  await test.step('V8: compass and map rest on shelf slots; E picks up; HUD shows them', async () => {
+  await test.step('V8: posters come off the wall, drop as scrolls, and re-hang', async () => {
+    await walkTo(page, -4.5, -3.6);
+    await openDetail(page);
+    await page.locator('button[data-take-down="poster-howto"]').click();
+    await page.waitForFunction(() => !window.__box.detailView.isOpen(), null, { timeout: 20000 });
+    expect(await page.evaluate(() => window.__box.gameState.hasItem('poster-howto'))).toBe(true);
+    expect(
+      await page.evaluate(() => window.__box.gameState.itemLocations['poster-howto'])
+    ).toBeUndefined();
+
+    await walkTo(page, 0, 0);
+    await page.keyboard.press('q');
+    const dropped = await page.evaluate(() => window.__box.gameState.itemLocations['poster-howto']);
+    expect(dropped.scene).toBe('inventory');
+    expect(Math.hypot(dropped.x, dropped.z)).toBeLessThan(0.5);
+
+    await expect
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
+      .toContain('pick up the How To Play poster');
+    await page.keyboard.press('e');
+    expect(await page.evaluate(() => window.__box.gameState.hasItem('poster-howto'))).toBe(true);
+
+    await walkTo(page, -4.5, -3.6);
+    await expect
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
+      .toContain('hang the How To Play poster');
+    await page.keyboard.press('q');
+    await expect
+      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations['poster-howto']))
+      .toEqual({ scene: 'inventory-wall', anchor: 0 });
+  });
+
+  await test.step('V9: compass and map rest on shelf slots; USE picks up; HUD shows them', async () => {
     const initial = await page.evaluate(() => ({
       locs: window.__box.gameState.itemLocations,
       slots: window.__box.inventoryScene.shelfSlots,
@@ -251,132 +308,146 @@ test('validation.md contract', async ({ page }) => {
     }
     await walkTo(page, -4.6, -2);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
       .toContain('pick up the Compass');
     await page.keyboard.press('e');
     await walkTo(page, -4.6, -0.7);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
       .toContain('pick up the Map');
     await page.keyboard.press('e');
-    expect(await page.evaluate(() => [...window.__box.gameState.carried].sort())).toEqual([
+    expect(await page.evaluate(() => [...window.__box.gameState.carried])).toEqual([
       'compass',
       'map',
     ]);
     await expect(page.locator('#hud-slots .slot')).toHaveCount(2);
   });
 
-  await test.step('V9: Q sorts carried items onto empty shelf slots; tidy objective completes', async () => {
+  await test.step('V10: Q sorts the most recent item onto empty shelf slots; tidy objective completes', async () => {
+    // Carried [compass, map] — the map was picked up last, so it drops first.
     await walkTo(page, -4.6, 0.6);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
-      .toContain('place the Compass on the shelf');
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
+      .toContain('place the Map on the shelf');
     await page.keyboard.press('q');
     await expect
-      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.compass))
+      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.map))
       .toEqual({ scene: 'inventory', x: -5.47, z: 0.6 });
     let tidy = await page.evaluate(() =>
       window.__box.gameState.objectives.find((o) => o.id === 'tidy-shelf')
     );
     expect(tidy).toBeTruthy();
-    expect(tidy.done).toBe(false); // map still carried
+    expect(tidy.done).toBe(false); // compass still carried
     await walkTo(page, -4.6, 2);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
-      .toContain('place the Map on the shelf');
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
+      .toContain('place the Compass on the shelf');
     await page.keyboard.press('q');
     await expect
-      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.map))
+      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.compass))
       .toEqual({ scene: 'inventory', x: -5.47, z: 2 });
     tidy = await page.evaluate(() =>
       window.__box.gameState.objectives.find((o) => o.id === 'tidy-shelf')
     );
     expect(tidy.done).toBe(true);
     // pick both back up for the maze half of the run
-    await page.keyboard.press('e'); // map (still standing at its slot)
+    await page.keyboard.press('e'); // compass (still standing at its slot)
     await walkTo(page, -4.6, 0.6);
-    await page.keyboard.press('e'); // compass
-    expect(await page.evaluate(() => window.__box.gameState.carried.size)).toBe(2);
+    await page.keyboard.press('e'); // map
+    expect(await page.evaluate(() => window.__box.gameState.carried.length)).toBe(2);
   });
 
-  await test.step('V10: Q away from shelves free-drops at the player', async () => {
+  await test.step('V11: carried items open their own detailed views from the HUD', async () => {
+    await page.locator('#hud-slots .slot[data-item="map"]').click();
+    await expect(page.locator('#modal-layer')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#modal-content')).toContainText('Map');
+    await expect(page.locator('#modal-content canvas')).toBeVisible();
+    await closeDetail(page);
+    await page.locator('#hud-slots .slot[data-item="compass"]').click();
+    await expect(page.locator('#modal-layer')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#modal-content')).toContainText('Compass');
+    await closeDetail(page);
+  });
+
+  await test.step('V12: Q away from shelves and hooks free-drops at the player', async () => {
     await walkTo(page, 0, 0);
-    await page.keyboard.press('q'); // drops compass (drop order: compass first)
-    const loc = await page.evaluate(() => window.__box.gameState.itemLocations.compass);
+    await page.keyboard.press('q'); // drops the map (picked up last)
+    const loc = await page.evaluate(() => window.__box.gameState.itemLocations.map);
     expect(loc.scene).toBe('inventory');
-    expect(Math.hypot(loc.x - 0, loc.z - 0)).toBeLessThan(0.5);
+    expect(Math.hypot(loc.x, loc.z)).toBeLessThan(0.5);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
-      .toContain('pick up the Compass');
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
+      .toContain('pick up the Map');
     await page.keyboard.press('e');
-    expect(await page.evaluate(() => window.__box.gameState.carried.size)).toBe(2);
+    expect(await page.evaluate(() => window.__box.gameState.carried.length)).toBe(2);
   });
 
-  await test.step('V11: ladder climbs out through the flatten transition into the maze', async () => {
-    const transition = await page.evaluate(
-      () => getComputedStyle(document.getElementById('viewport')).transitionProperty
-    );
-    expect(transition).toContain('transform');
+  await test.step('V13: the ladder climbs out through the flatten transition into the maze', async () => {
+    await page.evaluate(() => {
+      window.__sawFade = false;
+      const el = document.getElementById('fade-overlay');
+      new MutationObserver(() => {
+        if (el.classList.contains('active')) window.__sawFade = true;
+      }).observe(el, { attributes: true, attributeFilter: ['class'] });
+    });
     await walkTo(page, 0, 4.0);
     await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt))
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.prompt), { timeout: 10000 })
       .toContain('climb out');
     await page.keyboard.press('e');
-    await page.waitForFunction(() => window.__box.gameState.scene === 'maze', null, {
-      timeout: 10000,
-    });
+    await page.waitForFunction(
+      () =>
+        window.__box.gameState.scene === 'maze' &&
+        !window.__box.transition.playing &&
+        Math.abs(window.__box.mazeScene.camera.fov - 72) < 0.5,
+      null,
+      { timeout: 30000 }
+    );
+    expect(await page.evaluate(() => window.__sawFade)).toBe(true);
     await expect(page.locator('#hud-mode')).toHaveText(/the maze/i);
     expect(await page.evaluate(() => window.__box.audio._currentTrack)).toBe('maze');
   });
 
-  await test.step('V12: tile-stepped movement — step, turn, and bump', async () => {
-    const mark = () => markMaze(page);
-    const cellChanged = mazeCellChanged;
-    const facingChanged = mazeFacingChanged;
-
-    // One tap of W = exactly one cell along the facing direction.
-    await mark();
+  await test.step('V14: tile-stepped movement — step, turn, and bump', async () => {
+    await markMaze(page);
     const before = await mazeCell(page);
-    expect(await mazeAction(page, 'w', cellChanged)).toBe(true);
+    expect(await mazeAction(page, 'w', mazeCellChanged)).toBe(true);
     const after = await mazeCell(page);
     expect(Math.abs(after.x - before.x) + Math.abs(after.y - before.y)).toBe(1);
     expect(after.facing).toBe(before.facing);
 
-    // S steps exactly one cell, back to where we were.
-    await mark();
-    expect(await mazeAction(page, 's', cellChanged)).toBe(true);
+    await markMaze(page);
+    expect(await mazeAction(page, 's', mazeCellChanged)).toBe(true);
     const backAgain = await mazeCell(page);
     expect({ x: backAgain.x, y: backAgain.y }).toEqual({ x: before.x, y: before.y });
 
-    // A turns 90° left in place, D turns back.
-    await mark();
-    expect(await mazeAction(page, 'a', facingChanged)).toBe(true);
+    await markMaze(page);
+    expect(await mazeAction(page, 'a', mazeFacingChanged)).toBe(true);
     const turnedLeft = await mazeCell(page);
     expect(turnedLeft.facing).toBe((before.facing + 3) % 4);
     expect({ x: turnedLeft.x, y: turnedLeft.y }).toEqual({ x: backAgain.x, y: backAgain.y });
-    await mark();
-    expect(await mazeAction(page, 'd', facingChanged)).toBe(true);
+    await markMaze(page);
+    expect(await mazeAction(page, 'd', mazeFacingChanged)).toBe(true);
     expect((await mazeCell(page)).facing).toBe(before.facing);
 
-    // Bump: turn to face a walled direction; W must not move.
     const walledFacing = await page.evaluate(() => {
       const m = window.__box.mazeScene;
       const cell = m.world.cellAt(m.cellX, m.cellY);
       return ['N', 'E', 'S', 'W'].findIndex((w) => cell[w]);
     });
-    expect(walledFacing).toBeGreaterThanOrEqual(0); // every maze cell has at least one wall
+    expect(walledFacing).toBeGreaterThanOrEqual(0);
     while ((await mazeCell(page)).facing !== walledFacing) {
-      await mark();
-      expect(await mazeAction(page, 'd', facingChanged)).toBe(true);
+      await markMaze(page);
+      expect(await mazeAction(page, 'd', mazeFacingChanged)).toBe(true);
     }
-    await mark();
+    await markMaze(page);
     const beforeBump = await mazeCell(page);
-    expect(await mazeAction(page, 'w', cellChanged, 800)).toBe(false);
+    expect(await mazeAction(page, 'w', mazeCellChanged, 800)).toBe(false);
     const afterBump = await mazeCell(page);
     expect({ x: afterBump.x, y: afterBump.y }).toEqual({ x: beforeBump.x, y: beforeBump.y });
   });
 
-  await test.step('V13: compass and minimap overlays show in the maze and toggle with 1/2', async () => {
+  await test.step('V15: compass and minimap overlays show in the maze and toggle with 1/2', async () => {
     await expect(page.locator('#compass-wrap')).toBeVisible();
     await expect(page.locator('#minimap-wrap')).toBeVisible();
     await page.keyboard.press('2');
@@ -390,7 +461,7 @@ test('validation.md contract', async ({ page }) => {
     await expect(page.locator('#compass-wrap')).toBeVisible();
   });
 
-  await test.step('V14: reaching the exit nests new layers outward, then resets the run', async () => {
+  await test.step('V16: reaching the exit nests new layers outward, then resets the run', async () => {
     const teleportToExit = () =>
       page.evaluate(() => {
         const m = window.__box.mazeScene;
@@ -403,18 +474,20 @@ test('validation.md contract', async ({ page }) => {
 
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(3);
     await teleportToExit();
-    await page.waitForFunction(() => window.__box.gameState.mazeLayer === 2);
+    await page.waitForFunction(() => window.__box.gameState.mazeLayer === 2, null, { timeout: 10000 });
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(7);
     expect(
       await page.evaluate(() => window.__box.gameState.objectives.some((o) => o.id === 'escape-2'))
     ).toBe(true);
 
     await teleportToExit();
-    await page.waitForFunction(() => window.__box.gameState.mazeLayer === 3);
+    await page.waitForFunction(() => window.__box.gameState.mazeLayer === 3, null, { timeout: 10000 });
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(11);
 
     await teleportToExit();
-    await page.waitForFunction(() => window.__box.gameState.runsCompleted === 1);
+    await page.waitForFunction(() => window.__box.gameState.runsCompleted === 1, null, {
+      timeout: 10000,
+    });
     expect(await page.evaluate(() => window.__box.gameState.mazeLayer)).toBe(1);
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(3);
     const objectives = await page.evaluate(() => window.__box.gameState.objectives);
@@ -422,28 +495,30 @@ test('validation.md contract', async ({ page }) => {
     expect(objectives[0].done).toBe(false);
   });
 
-  await test.step('V15: items drop into and pick up from the maze floor', async () => {
-    await page.keyboard.press('q'); // drops compass at player
+  await test.step('V17: items drop into and pick up from the maze floor', async () => {
+    await page.keyboard.press('q'); // drops the map (most recent)
     await expect
-      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.compass?.scene))
+      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.map?.scene))
       .toBe('maze');
     await expect
-      .poll(() => page.evaluate(() => window.__box.mazeScene.prompt))
-      .toContain('pick up the Compass');
+      .poll(() => page.evaluate(() => window.__box.mazeScene.prompt), { timeout: 10000 })
+      .toContain('pick up the Map');
     await page.keyboard.press('e');
-    expect(await page.evaluate(() => window.__box.gameState.hasItem('compass'))).toBe(true);
+    expect(await page.evaluate(() => window.__box.gameState.hasItem('map'))).toBe(true);
   });
 
-  await test.step('V16: I climbs back into the box, box music resumes', async () => {
+  await test.step('V18: I climbs back into the box, box music resumes', async () => {
     await page.keyboard.press('i');
-    await page.waitForFunction(() => window.__box.gameState.scene === 'inventory', null, {
-      timeout: 10000,
-    });
+    await page.waitForFunction(
+      () => window.__box.gameState.scene === 'inventory' && !window.__box.transition.playing,
+      null,
+      { timeout: 30000 }
+    );
     await expect(page.locator('#hud-mode')).toHaveText(/inside the box/i);
     expect(await page.evaluate(() => window.__box.audio._currentTrack)).toBe('box');
   });
 
-  await test.step('V17: M mutes and unmutes all audio', async () => {
+  await test.step('V19: M mutes and unmutes all audio', async () => {
     await page.keyboard.press('m');
     expect(await page.evaluate(() => window.__box.audio.muted)).toBe(true);
     expect(await page.evaluate(() => window.__box.audio.master.gain.value)).toBe(0);
@@ -452,7 +527,7 @@ test('validation.md contract', async ({ page }) => {
     expect(await page.evaluate(() => window.__box.audio.muted)).toBe(false);
   });
 
-  await test.step('V18: state persists to localStorage and the run produced zero errors', async () => {
+  await test.step('V20: state persists to localStorage and the run produced zero errors', async () => {
     const save = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('box-and-bones:save'))
     );
@@ -460,13 +535,13 @@ test('validation.md contract', async ({ page }) => {
     expect(save.mazeLayer).toBe(1);
     expect(save.runsCompleted).toBe(1);
     expect([...save.carried].sort()).toEqual(['compass', 'map']);
+    expect(save.itemLocations['poster-howto']).toEqual({ scene: 'inventory-wall', anchor: 0 });
     expect(errors).toEqual([]);
   });
 
-  await test.step('V19: touch controls drive both scenes', async () => {
+  await test.step('V21: touch controls drive both scenes', async () => {
     await expect(page.locator('#touch-controls')).toBeVisible();
 
-    // Hold the D-pad "up" button: the box player walks.
     const up = page.locator('#tc-dpad [data-action="moveForward"]');
     const before = await page.evaluate(() => ({
       x: window.__box.inventoryScene.playerX,
@@ -481,15 +556,15 @@ test('validation.md contract', async ({ page }) => {
     }));
     expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeGreaterThan(0.1);
 
-    // The BOX button climbs out into the maze.
     const boxBtn = page.locator('#tc-actions [data-action="inventory"]');
     await boxBtn.dispatchEvent('pointerdown');
     await boxBtn.dispatchEvent('pointerup');
-    await page.waitForFunction(() => window.__box.gameState.scene === 'maze', null, {
-      timeout: 10000,
-    });
+    await page.waitForFunction(
+      () => window.__box.gameState.scene === 'maze' && !window.__box.transition.playing,
+      null,
+      { timeout: 30000 }
+    );
 
-    // Holding ▲ in the maze steps exactly one cell; ◀ turns 90° left.
     await markMaze(page);
     const cellBefore = await mazeCell(page);
     await up.dispatchEvent('pointerdown');
