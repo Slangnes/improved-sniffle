@@ -30,11 +30,13 @@ and key-rebinding live on the actual posters. Posters can be taken off the
 wall from their detailed view, carried rolled up, dropped anywhere — even
 in the maze — and hung back on any empty hook.
 
-Movement is one square at a time everywhere, like a classic dungeon crawler
-(Wizardry, Eye of the Beholder): W/S step, A/D strafe, Q/E turn. In the
-box you steer a little hooded explorer across the floor grid of an
-isometric room; the ladder is the only way out. In the maze it's
-first-person.
+Movement is one square at a time everywhere, like a classic dungeon
+crawler (Wizardry, Eye of the Beholder). In the box the overhead camera is
+grid-aligned, so **what you press is where you go on screen**: W walks up,
+S down, A left, D right, and the little hooded explorer turns to face its
+steps; the ladder is the only way out. In the maze it's first-person: W/S
+step, A/D strafe, Q/E turn. Held keys chain steps smoothly, the newest
+pressed direction wins, and the arrow keys always work (↑↓ step, ←→ turn).
 
 You have a **left hand and a right hand**. Each holds one item; what your
 left hand carries sits at the bottom-left of the screen (and in the maze,
@@ -58,6 +60,7 @@ setting swaps the pad and action clusters.
 | Right hand: drop, shelve, or hang   | C       |
 | Look into your box (maze only)      | I       |
 | Toggle Compass / Map overlays       | 1 / 2   |
+| Arrow keys (always active)          | ↑↓ step, ←→ turn |
 | Mute audio                          | M       |
 
 ## What's in the box

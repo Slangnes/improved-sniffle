@@ -43,6 +43,15 @@ const TOUCH_NAMES = {
   turnRight: '⟳',
 };
 
+// The arrow keys always work, on top of whatever is bound: up/down step,
+// left/right turn — the classic crawler layout.
+const FIXED_ALIASES = {
+  moveForward: ['ArrowUp'],
+  moveBackward: ['ArrowDown'],
+  turnLeft: ['ArrowLeft'],
+  turnRight: ['ArrowRight'],
+};
+
 const STORAGE_KEY = 'box-and-bones:bindings';
 
 export class InputManager {
@@ -95,12 +104,28 @@ export class InputManager {
     this.keysDown.delete(e.code);
   }
 
+  _codesFor(action) {
+    return [this.bindings[action], ...(FIXED_ALIASES[action] || [])];
+  }
+
   isDown(action) {
-    return this.keysDown.has(this.bindings[action]);
+    return this._codesFor(action).some((c) => this.keysDown.has(c));
   }
 
   wasPressed(action) {
-    return this.actionsPressedThisFrame.has(this.bindings[action]);
+    return this._codesFor(action).some((c) => this.actionsPressedThisFrame.has(c));
+  }
+
+  // Of the given actions currently held, the one whose key was pressed most
+  // recently — so a newly pressed direction always wins over one still held.
+  latestDown(actions) {
+    let latest = null;
+    for (const code of this.keysDown) {
+      for (const action of actions) {
+        if (this._codesFor(action).includes(code)) latest = action;
+      }
+    }
+    return latest;
   }
 
   endFrame() {

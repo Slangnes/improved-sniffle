@@ -19,24 +19,33 @@ const PICKUP_RADIUS = 2.0;
 const SLOT_RADIUS = 2.0;
 const ANCHOR_RADIUS = 1.5;
 
-// Isometric camera: offset from the player toward the south-east, looking
-// back down at them, with an orthographic projection. The south and east
-// walls are low rims so the camera sees into the box like an open crate.
-const CAM_OFFSET = new THREE.Vector3(7.5, 11, 7.5);
+// Overhead camera due SOUTH of the player, looking north and down, with an
+// orthographic projection. Screen axes line up exactly with the grid: up on
+// screen is north on the grid, right is east — so what you press is where
+// you go. The south wall is a low rim the camera sees over.
+const CAM_OFFSET = new THREE.Vector3(0, 10.5, 8);
 const FRUSTUM_HEIGHT = 9.5;
 
-// World-grid facings: N, E, S, W.
+// World-grid facings: N, E, S, W. Movement keys map to these absolutely
+// (W north, D east, S south, A west); the avatar turns to face its steps.
 const FACINGS = [
   { dx: 0, dz: -1 },
   { dx: 1, dz: 0 },
   { dx: 0, dz: 1 },
   { dx: -1, dz: 0 },
 ];
+const KEY_DIRS = [
+  { action: 'moveForward', dir: 0 },
+  { action: 'strafeRight', dir: 1 },
+  { action: 'moveBackward', dir: 2 },
+  { action: 'strafeLeft', dir: 3 },
+];
 
+// Everything readable hangs on the north wall, facing the camera.
 const WALL_ANCHORS = [
-  { x: -4.5, z: -4.28 },
-  { x: -1.4, z: -4.28 },
-  { x: 1.7, z: -4.28 },
+  { x: -2.9, z: -4.28 },
+  { x: -0.9, z: -4.28 },
+  { x: 1.1, z: -4.28 },
 ];
 
 const POSTER_ART = {
@@ -163,11 +172,11 @@ export class InventoryScene {
     };
     tallWall(ROOM_W + 0.6, 0.3, 0, -ROOM_D / 2);
     tallWall(0.3, ROOM_D + 0.6, -ROOM_W / 2, 0);
+    tallWall(0.3, ROOM_D + 0.6, ROOM_W / 2, 0);
     lowRim(ROOM_W + 0.6, 0.3, 0, ROOM_D / 2);
-    lowRim(0.3, ROOM_D + 0.6, ROOM_W / 2, 0);
 
     this._addBulletinBoard(4.6, -4.35);
-    this._addTitlePoster(-5.84, 3.5);
+    this._addTitlePoster(-5.0, -4.28);
     this._addShelves(-ROOM_W / 2 + 0.25, 0);
     this._addDesk(ROOM_W / 2 - 1.6, ROOM_D / 2 - 1.8);
     this._addLadder(0, ROOM_D / 2 - 0.3);
@@ -204,14 +213,13 @@ export class InventoryScene {
       new THREE.PlaneGeometry(1.3, 1.7),
       new THREE.MeshBasicMaterial({ map: tex })
     );
-    mesh.position.set(x, 1.9, z);
-    mesh.rotation.y = Math.PI / 2;
+    mesh.position.set(x, 1.9, z + 0.02);
     this.scene.add(mesh);
 
     this.staticInteractables.push({ id: 'title', kind: 'detail', x, z, radius: 1.5, label: 'Box & Bones poster' });
     this.focusPoses.set('title', {
       look: new THREE.Vector3(x, 1.9, z),
-      camPos: new THREE.Vector3(x + 3.4, 1.9, z),
+      camPos: new THREE.Vector3(x, 1.9, z + 3.4),
       viewHeight: 2.6,
       contentW: 1.3,
       contentH: 1.7,
@@ -493,13 +501,26 @@ export class InventoryScene {
     if (allShelved) this.gameState.completeObjective('tidy-shelf');
   }
 
+  _processMovementInput() {
+    // Absolute, screen-aligned steps: last direction pressed wins.
+    const held = this.input.latestDown(KEY_DIRS.map((k) => k.action));
+    if (held) {
+      const dir = KEY_DIRS.find((k) => k.action === held).dir;
+      this.facing = dir; // the avatar turns to face the way it walks
+      this._tryStep(dir);
+      return;
+    }
+    if (this.input.wasPressed('turnLeft')) this.facing = (this.facing + 3) % 4;
+    else if (this.input.wasPressed('turnRight')) this.facing = (this.facing + 1) % 4;
+  }
+
   update(dt) {
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) this.toastMessage = null;
     }
 
-    let moved = false;
+    let hop = 0;
     if (this.isAnimating) {
       this.animT += dt / STEP_DURATION;
       if (this.animT >= 1) {
@@ -509,25 +530,18 @@ export class InventoryScene {
       const t = easeInOutQuad(this.animT);
       this.playerX = this.animFrom.x + (this.animTo.x - this.animFrom.x) * t;
       this.playerZ = this.animFrom.z + (this.animTo.z - this.animFrom.z) * t;
-      moved = true;
-    } else if (this.input.isDown('moveForward')) {
-      this._tryStep(this.facing);
-    } else if (this.input.isDown('moveBackward')) {
-      this._tryStep((this.facing + 2) % 4);
-    } else if (this.input.isDown('strafeLeft')) {
-      this._tryStep((this.facing + 3) % 4);
-    } else if (this.input.isDown('strafeRight')) {
-      this._tryStep((this.facing + 1) % 4);
-    } else if (this.input.wasPressed('turnLeft')) {
-      this.facing = (this.facing + 3) % 4;
-    } else if (this.input.wasPressed('turnRight')) {
-      this.facing = (this.facing + 1) % 4;
+      hop = Math.sin(Math.min(this.animT, 1) * Math.PI) * 0.05;
     }
-    void moved;
+    // Process input the same frame a step finishes, so held keys chain
+    // steps with no dead frame between them.
+    if (!this.isAnimating) {
+      this._processMovementInput();
+    }
 
     const dir = FACINGS[this.facing];
-    this.playerMesh.position.set(this.playerX, 0, this.playerZ);
-    this.playerMesh.rotation.y = Math.atan2(dir.dx, dir.dz);
+    this.playerMesh.position.set(this.playerX, hop, this.playerZ);
+    // face along the walk direction (the face is on the avatar's -z side)
+    this.playerMesh.rotation.y = Math.atan2(-dir.dx, -dir.dz);
 
     if (!this.cameraOverride) this._placeCamera();
 

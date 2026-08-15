@@ -26,10 +26,16 @@ Console errors are collected for the whole run; V20 fails if any occurred.
 
 ## Movement language (both scenes)
 
-One square at a time, everywhere. W/S step forward/back, A/D **strafe**
-left/right, Q/E **turn** 90° in place. The box is a walkable grid inside
-an isometric orthographic view; the maze is first-person 3D. Tiles blocked
-by furniture (or maze walls) refuse the step with a bump.
+One square at a time, everywhere — and controls always go the way you
+expect. The box camera sits due south of the player, so **screen axes line
+up exactly with the grid**: in the box, W walks up the screen (north),
+S down, A left, D right — absolute directions, with the avatar turning to
+face its steps. The maze is first-person: W/S step along your view, A/D
+**strafe**, Q/E **turn** 90°. The **arrow keys always work** on top of any
+bindings (↑↓ step, ←→ turn). Held keys chain steps with no dead frame
+between them, the most recently pressed direction wins, and steps have a
+subtle bob. Tiles blocked by furniture (or maze walls) refuse the step
+with a bump.
 
 ## Hands
 
@@ -47,10 +53,11 @@ between sides (the hand buttons stay on their hands' sides).
   separate menu: on load the camera is zoomed onto the "Box & Bones"
   poster in the box with a BEGIN button, rendered on the poster itself
   (dark panel, no modal card). It cannot be dismissed without BEGIN.
-- **V2 — BEGIN zooms out into the isometric box.** The camera pulls back
-  from the poster into the orthographic isometric view. Audio starts.
-  Inside the box there is **no BOX button and no shortcut out** — the
-  touch BOX button is hidden; the ladder is the only exit.
+- **V2 — BEGIN zooms out into the overhead box view.** The camera pulls
+  back from the poster into the grid-aligned orthographic view. Audio
+  starts. Inside the box there is **no BOX button and no shortcut out** —
+  the ladder is the only exit. Pressing W steps exactly one tile up the
+  screen (north), and the ArrowDown alias steps back.
 
 ## The box: info lives on the posters
 
@@ -100,9 +107,10 @@ floating modal card). Closing flies the camera back out.
 
 ## The maze
 
-- **V14 — Steps, strafes, turns, bumps.** W/S step one cell along the
-  facing, A/D strafe one cell sideways without changing facing, Q/E turn
-  exactly 90°, and stepping into a wall moves zero cells.
+- **V14 — Steps, strafes, turns, bumps — arrows included.** W/S (and
+  ↑/↓) step one cell along the facing, A/D strafe one cell sideways
+  without changing facing, Q/E (and ←/→) turn exactly 90°, and stepping
+  into a wall moves zero cells.
 - **V15 — Compass and map overlays** show while carried and active; keys
   1 / 2 toggle them.
 - **V16 — Talisman-style nested layers.** Exit extends the maze 1 → 2 → 3

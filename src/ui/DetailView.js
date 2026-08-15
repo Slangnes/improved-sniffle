@@ -243,8 +243,11 @@ export class DetailView {
       outward, wrapping a new, bigger ring around the one you just cleared.
       Clear three rings and the whole thing folds back to the start &mdash;
       a fresh maze, ready to run again.</p>
-      <p>Everywhere, you move one square at a time: W/S step forward and
-      back, A/D sidestep, Q/E turn you in place. The ladder is the only way
+      <p>You move one square at a time, everywhere. In the box, what you
+      press is where you go on screen: W walks up, S down, A left, D right.
+      In the maze it's first-person: W/S step forward and back, A/D
+      sidestep, Q/E turn you in place. The arrow keys always work too
+      (&#8593;&#8595; step, &#8592;&#8594; turn). The ladder is the only way
       out of the box.</p>
       <p>You have two hands, and each can hold one thing. What your left
       hand holds sits at the left of the screen, your right at the right.

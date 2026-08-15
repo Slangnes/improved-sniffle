@@ -84,22 +84,20 @@ async function boxStep(page, key, maxHoldMs = 2500) {
 }
 
 // Walk a straight-line path of waypoints; each waypoint must share an axis
-// with the previous position. Strafes cover every direction, so no turning
-// is needed: for world direction d and current facing f, the key is
-// ['w','d','s','a'][(d - f + 4) % 4].
+// with the previous position. Box movement is screen-absolute: W north,
+// D east, S south, A west, regardless of the avatar's facing.
 async function navigate(page, waypoints) {
   for (const [col, row] of waypoints) {
     for (let guard = 0; guard < 30; guard++) {
       const t = await boxTile(page);
       if (t.col === col && t.row === row) break;
-      let dir;
-      if (t.col < col) dir = 1;
-      else if (t.col > col) dir = 3;
-      else if (t.row < row) dir = 2;
-      else dir = 0;
-      const key = ['w', 'd', 's', 'a'][(dir - t.facing + 4) % 4];
+      let key;
+      if (t.col < col) key = 'd';
+      else if (t.col > col) key = 'a';
+      else if (t.row < row) key = 's';
+      else key = 'w';
       const moved = await boxStep(page, key);
-      if (!moved) throw new Error(`blocked stepping ${dir} at ${t.col},${t.row}`);
+      if (!moved) throw new Error(`blocked stepping ${key} at ${t.col},${t.row}`);
     }
     const t = await boxTile(page);
     if (t.col !== col || t.row !== row) throw new Error(`failed to reach ${col},${row}`);
@@ -194,10 +192,21 @@ test('validation.md contract', async ({ page }) => {
     expect(cam.ctxState).toBe('running');
     expect(cam.track).toBe('box');
     await expect(page.locator('.tc-box')).toBeHidden();
+
+    // Screen-aligned movement: W steps one tile north (up on screen).
+    const t0 = await boxTile(page);
+    expect(await boxStep(page, 'w')).toBe(true);
+    const t1 = await boxTile(page);
+    expect(t1.row).toBe(t0.row - 1);
+    expect(t1.col).toBe(t0.col);
+    // The arrow keys always work: ArrowDown steps back south.
+    expect(await boxStep(page, 'ArrowDown')).toBe(true);
+    const t2 = await boxTile(page);
+    expect({ col: t2.col, row: t2.row }).toEqual({ col: t0.col, row: t0.row });
   });
 
   await test.step('V3: How To Play poster, read on the poster', async () => {
-    await navigate(page, [[1, 2], [1, 0]]);
+    await navigate(page, [[2, 2], [2, 0]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('How To Play poster');
     await openDetail(page);
     await expect(page.locator('#modal-box')).toHaveClass(/panel-world/);
@@ -224,7 +233,7 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V5: Settings poster: volumes, mute, left-handed layout', async () => {
-    await navigate(page, [[5, 0]]);
+    await navigate(page, [[4, 0]]);
     await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Settings');
     const musicRow = page.locator('.keybind-row', { hasText: 'Music Volume' });
@@ -265,7 +274,7 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V8: posters come off the wall into a hand, drop as scrolls, re-hang', async () => {
-    await navigate(page, [[5, 5], [5, 0], [1, 0]]);
+    await navigate(page, [[5, 5], [5, 0], [2, 0]]);
     await openDetail(page);
     await page.locator('button[data-take-down="poster-howto"]').click();
     await page.waitForFunction(() => !window.__box.detailView.isOpen(), null, { timeout: 20000 });
@@ -282,7 +291,7 @@ test('validation.md contract', async ({ page }) => {
     await page.keyboard.press('f');
     await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.right)).toBe('poster-howto');
 
-    await navigate(page, [[1, 2], [1, 0]]);
+    await navigate(page, [[2, 2], [2, 0]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('hang the How To Play poster');
     await page.keyboard.press('c');
     await expect
@@ -291,7 +300,7 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V9: compass and map pick up into right then left hand', async () => {
-    await navigate(page, [[1, 1]]);
+    await navigate(page, [[1, 0], [1, 1]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('pick up the Compass');
     await page.keyboard.press('f');
     await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.right)).toBe('compass');
@@ -383,11 +392,11 @@ test('validation.md contract', async ({ page }) => {
     await expect(page.locator('.tc-box')).toBeVisible();
   });
 
-  await test.step('V14: maze steps, strafes, turns, and bumps', async () => {
-    // Step forward exactly one cell.
+  await test.step('V14: maze steps, strafes, turns, bumps — arrows also work', async () => {
+    // Step forward exactly one cell (via the always-on ArrowUp alias).
     await markMaze(page);
     const before = await mazeCell(page);
-    expect(await mazeAction(page, 'w', mazeCellChanged)).toBe(true);
+    expect(await mazeAction(page, 'ArrowUp', mazeCellChanged)).toBe(true);
     const after = await mazeCell(page);
     expect(Math.abs(after.x - before.x) + Math.abs(after.y - before.y)).toBe(1);
     expect(after.facing).toBe(before.facing);
@@ -397,9 +406,9 @@ test('validation.md contract', async ({ page }) => {
     expect(await mazeAction(page, 's', mazeCellChanged)).toBe(true);
     expect(await mazeCell(page)).toEqual(before);
 
-    // Turns rotate 90° in place (Q left, E right).
+    // Turns rotate 90° in place (Q left / ArrowLeft, E right).
     await markMaze(page);
-    expect(await mazeAction(page, 'q', mazeFacingChanged)).toBe(true);
+    expect(await mazeAction(page, 'ArrowLeft', mazeFacingChanged)).toBe(true);
     const turned = await mazeCell(page);
     expect(turned.facing).toBe((before.facing + 3) % 4);
     expect({ x: turned.x, y: turned.y }).toEqual({ x: before.x, y: before.y });
@@ -564,7 +573,7 @@ test('validation.md contract', async ({ page }) => {
       })
     ).toBe(true);
 
-    // Turn button rotates the avatar.
+    // Turn button rotates the avatar (movement stays screen-absolute).
     const before = await boxTile(page);
     const turnBtn = page.locator('[data-action="turnLeft"]');
     await turnBtn.dispatchEvent('pointerdown');
@@ -574,20 +583,6 @@ test('validation.md contract', async ({ page }) => {
       .toBe((before.facing + 3) % 4);
 
     // Climb out with the USE button at the ladder, then step in the maze.
-    // (turn back to north first so navigation math stays simple)
-    await turnBtn.dispatchEvent('pointerdown');
-    await turnBtn.dispatchEvent('pointerup');
-    await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.facing), { timeout: 5000 })
-      .toBe((before.facing + 2) % 4);
-    await turnBtn.dispatchEvent('pointerdown');
-    await turnBtn.dispatchEvent('pointerup');
-    await turnBtn.dispatchEvent('pointerdown');
-    await turnBtn.dispatchEvent('pointerup');
-    await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.facing), { timeout: 5000 })
-      .toBe(before.facing);
-
     await navigate(page, [[3, 3], [3, 5]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('climb out');
     const useBtn = page.locator('[data-action="interact"]');

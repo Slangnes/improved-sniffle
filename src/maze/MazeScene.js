@@ -261,6 +261,7 @@ export class MazeScene {
     this.animFrom = { x: this.playerX, z: this.playerZ, yaw: this.yaw };
     this.animTo = { x: target.x, z: target.z, yaw: this.yaw };
     this.animDuration = STEP_DURATION;
+    this.animKind = 'step';
     this.animT = 0;
     this.isAnimating = true;
     this.cellX += dCellX;
@@ -274,6 +275,7 @@ export class MazeScene {
     this.animFrom = { x: this.playerX, z: this.playerZ, yaw: this.yaw };
     this.animTo = { x: this.playerX, z: this.playerZ, yaw: this.yaw + delta };
     this.animDuration = TURN_DURATION;
+    this.animKind = 'turn';
     this.animT = 0;
     this.isAnimating = true;
   }
@@ -294,6 +296,7 @@ export class MazeScene {
       if (this.toastTimer <= 0) this.toastMessage = null;
     }
 
+    this.bobY = 0;
     if (this.isAnimating) {
       this.animT += dt / this.animDuration;
       if (this.animT >= 1) {
@@ -304,18 +307,27 @@ export class MazeScene {
       this.playerX = this.animFrom.x + (this.animTo.x - this.animFrom.x) * t;
       this.playerZ = this.animFrom.z + (this.animTo.z - this.animFrom.z) * t;
       this.yaw = this.animFrom.yaw + (this.animTo.yaw - this.animFrom.yaw) * t;
-    } else if (this.input.isDown('moveForward')) {
-      this._tryStep(this.facing);
-    } else if (this.input.isDown('moveBackward')) {
-      this._tryStep((this.facing + 2) % 4);
-    } else if (this.input.isDown('strafeLeft')) {
-      this._tryStep((this.facing + 3) % 4);
-    } else if (this.input.isDown('strafeRight')) {
-      this._tryStep((this.facing + 1) % 4);
-    } else if (this.input.isDown('turnLeft')) {
-      this._beginTurn((this.facing + 3) % 4);
-    } else if (this.input.isDown('turnRight')) {
-      this._beginTurn((this.facing + 1) % 4);
+      if (this.animKind === 'step') {
+        this.bobY = Math.sin(Math.min(this.animT, 1) * Math.PI) * 0.045;
+      }
+    }
+    // Process input the same frame an animation finishes so held keys chain
+    // actions without a dead frame; the most recently pressed key wins.
+    if (!this.isAnimating) {
+      const held = this.input.latestDown([
+        'moveForward',
+        'moveBackward',
+        'strafeLeft',
+        'strafeRight',
+        'turnLeft',
+        'turnRight',
+      ]);
+      if (held === 'moveForward') this._tryStep(this.facing);
+      else if (held === 'moveBackward') this._tryStep((this.facing + 2) % 4);
+      else if (held === 'strafeLeft') this._tryStep((this.facing + 3) % 4);
+      else if (held === 'strafeRight') this._tryStep((this.facing + 1) % 4);
+      else if (held === 'turnLeft') this._beginTurn((this.facing + 3) % 4);
+      else if (held === 'turnRight') this._beginTurn((this.facing + 1) % 4);
     }
 
     this.visitedCells.add(`${this.cellX},${this.cellY}`);
@@ -426,7 +438,7 @@ export class MazeScene {
     const fz = -Math.cos(this.yaw);
     this.camera.position.set(
       this.playerX - fx * this.transitionBack,
-      PLAYER_HEIGHT,
+      PLAYER_HEIGHT + (this.bobY || 0),
       this.playerZ - fz * this.transitionBack
     );
     this.camera.rotation.y = this.yaw;
