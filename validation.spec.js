@@ -17,6 +17,9 @@ const BASE = 'http://localhost:4173/';
 
 test.use({
   viewport: { width: 1280, height: 800 },
+  // Run the whole suite in a touch-capable context (per validation.md V19):
+  // the touch UI is visible in every trace screenshot, and V19 exercises it.
+  hasTouch: true,
   // Always record a trace with screenshots. Per-action DOM snapshots are
   // disabled: the game renders to a canvas (snapshots show nothing useful)
   // and their capture overhead stretches every key tap enough to break the
@@ -108,6 +111,22 @@ const mazeCell = (page) =>
     y: window.__box.mazeScene.cellY,
     facing: window.__box.mazeScene.facing,
   }));
+
+// Snapshot the pre-action cell/facing inside the page so hold-until-changed
+// predicates can compare against it.
+const markMaze = (page) =>
+  page.evaluate(() => {
+    const m = window.__box.mazeScene;
+    m.__vStartX = m.cellX;
+    m.__vStartY = m.cellY;
+    m.__vFacing = m.facing;
+  });
+const mazeCellChanged = () => {
+  const m = window.__box.mazeScene;
+  return m.cellX !== m.__vStartX || m.cellY !== m.__vStartY;
+};
+const mazeFacingChanged = () =>
+  window.__box.mazeScene.facing !== window.__box.mazeScene.__vFacing;
 
 test('validation.md contract', async ({ page }) => {
   test.setTimeout(480000);
@@ -311,20 +330,9 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V12: tile-stepped movement — step, turn, and bump', async () => {
-    // Snapshot the pre-action cell/facing inside the page so the hold-until-
-    // changed predicate can compare against it.
-    const mark = () =>
-      page.evaluate(() => {
-        const m = window.__box.mazeScene;
-        m.__vStartX = m.cellX;
-        m.__vStartY = m.cellY;
-        m.__vFacing = m.facing;
-      });
-    const cellChanged = () => {
-      const m = window.__box.mazeScene;
-      return m.cellX !== m.__vStartX || m.cellY !== m.__vStartY;
-    };
-    const facingChanged = () => window.__box.mazeScene.facing !== window.__box.mazeScene.__vFacing;
+    const mark = () => markMaze(page);
+    const cellChanged = mazeCellChanged;
+    const facingChanged = mazeFacingChanged;
 
     // One tap of W = exactly one cell along the facing direction.
     await mark();
@@ -453,5 +461,60 @@ test('validation.md contract', async ({ page }) => {
     expect(save.runsCompleted).toBe(1);
     expect([...save.carried].sort()).toEqual(['compass', 'map']);
     expect(errors).toEqual([]);
+  });
+
+  await test.step('V19: touch controls drive both scenes', async () => {
+    await expect(page.locator('#touch-controls')).toBeVisible();
+
+    // Hold the D-pad "up" button: the box player walks.
+    const up = page.locator('#tc-dpad [data-action="moveForward"]');
+    const before = await page.evaluate(() => ({
+      x: window.__box.inventoryScene.playerX,
+      z: window.__box.inventoryScene.playerZ,
+    }));
+    await up.dispatchEvent('pointerdown');
+    await page.waitForTimeout(700);
+    await up.dispatchEvent('pointerup');
+    const after = await page.evaluate(() => ({
+      x: window.__box.inventoryScene.playerX,
+      z: window.__box.inventoryScene.playerZ,
+    }));
+    expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeGreaterThan(0.1);
+
+    // The BOX button climbs out into the maze.
+    const boxBtn = page.locator('#tc-actions [data-action="inventory"]');
+    await boxBtn.dispatchEvent('pointerdown');
+    await boxBtn.dispatchEvent('pointerup');
+    await page.waitForFunction(() => window.__box.gameState.scene === 'maze', null, {
+      timeout: 10000,
+    });
+
+    // Holding ▲ in the maze steps exactly one cell; ◀ turns 90° left.
+    await markMaze(page);
+    const cellBefore = await mazeCell(page);
+    await up.dispatchEvent('pointerdown');
+    const start = Date.now();
+    while (Date.now() - start < 3000) {
+      if (await page.evaluate(mazeCellChanged)) break;
+      await page.waitForTimeout(25);
+    }
+    await up.dispatchEvent('pointerup');
+    await page.waitForFunction(() => !window.__box.mazeScene.isAnimating);
+    const cellAfter = await mazeCell(page);
+    expect(
+      Math.abs(cellAfter.x - cellBefore.x) + Math.abs(cellAfter.y - cellBefore.y)
+    ).toBe(1);
+
+    const left = page.locator('#tc-dpad [data-action="moveLeft"]');
+    await markMaze(page);
+    await left.dispatchEvent('pointerdown');
+    const tStart = Date.now();
+    while (Date.now() - tStart < 3000) {
+      if (await page.evaluate(mazeFacingChanged)) break;
+      await page.waitForTimeout(25);
+    }
+    await left.dispatchEvent('pointerup');
+    await page.waitForFunction(() => !window.__box.mazeScene.isAnimating);
+    expect((await mazeCell(page)).facing).toBe((cellAfter.facing + 3) % 4);
   });
 });

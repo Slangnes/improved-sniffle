@@ -104,3 +104,15 @@ fails if any occurred at any point.
   objectives, item locations, carried items) is persisted to localStorage
   under `box-and-bones:save`. No console errors or page errors occurred at
   any point during the entire run.
+
+## Touch
+
+- **V19 — Touch controls make the game phone-playable.** On a device with
+  a touch screen, an on-screen D-pad and USE / DROP / BOX buttons appear
+  automatically. Holding the D-pad walks the player in the box; the BOX
+  button climbs out through the transition; holding ▲ in the maze steps one
+  cell, ◀ turns. The buttons route through the current key bindings, so
+  rebinding keys re-routes touch input too.
+  *Method note: the entire spec runs in a touch-capable browser context
+  (`hasTouch: true`), so the touch UI is visible in every trace screenshot;
+  V19 then drives the buttons directly via pointer events.*

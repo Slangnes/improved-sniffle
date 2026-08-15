@@ -276,3 +276,106 @@ html, body {
 #fade-overlay.active {
   opacity: 1;
 }
+
+/* ---------- touch controls ---------- */
+
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+  display: none;
+}
+
+body.touch #touch-controls {
+  display: block;
+}
+
+.tc-btn {
+  pointer-events: auto;
+  width: 58px;
+  height: 58px;
+  border-radius: 12px;
+  background: rgba(10, 8, 6, 0.55);
+  border: 1px solid #7a6a45;
+  color: #e8dfc8;
+  font-family: inherit;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tc-btn:focus {
+  outline: none;
+}
+
+.tc-btn.held {
+  background: rgba(122, 106, 69, 0.75);
+  border-color: #e8c96a;
+}
+
+.tc-btn.tc-wide {
+  width: 86px;
+  height: 52px;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+#tc-dpad {
+  position: absolute;
+  left: calc(14px + env(safe-area-inset-left, 0px));
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-areas:
+    '. up .'
+    'left mid right'
+    '. down .';
+  gap: 8px;
+}
+
+#tc-actions {
+  position: absolute;
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* keep the compass dial clear of the action buttons on touch layouts */
+body.touch #compass-wrap {
+  bottom: calc(210px + env(safe-area-inset-bottom, 0px));
+}
+
+/* lift prompts above the control clusters */
+body.touch #prompt {
+  bottom: 32%;
+}
+
+/* HUD slot icons are tappable to toggle the compass/map overlays */
+#hud-slots .slot {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  #minimap-wrap canvas {
+    width: 34vw;
+    max-width: 180px;
+    height: auto;
+  }
+
+  #start-overlay h1 {
+    font-size: 30px;
+  }
+
+  #hud-objective {
+    max-width: 60vw;
+  }
+}

@@ -67,9 +67,12 @@ export class ModalManager {
         <li>E to interact with what's nearby</li>
         <li>Q to drop a carried item, or sort it onto an empty shelf slot</li>
         <li>I to look into your box, or climb out of it</li>
-        <li>1 / 2 to toggle the compass / map overlays</li>
+        <li>1 / 2 to toggle the compass / map overlays (or tap their icons)</li>
         <li>M to mute all audio</li>
-      </ul>`;
+      </ul>
+      <p>On a touch screen, use the on-screen pad instead: the arrows move
+      (and, in the maze, step and turn), USE interacts, DROP puts an item
+      down or sorts it onto a shelf, and BOX climbs in or out of the box.</p>`;
   }
 
   _controls() {

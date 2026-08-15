@@ -24,6 +24,11 @@ In the maze, movement is tile-by-tile like a classic dungeon crawler
 (Wizardry, Eye of the Beholder): W/S step forward or back one tile, A/D turn
 90&deg; in place. In the box, movement is free-roaming top-down.
 
+On touch devices an on-screen D-pad and USE / DROP / BOX buttons appear
+automatically, driving exactly the same actions, and the compass/map HUD
+icons can be tapped to toggle those overlays — the game is playable on a
+phone at the same URL.
+
 ## Controls (rebindable in-game via the Controls poster)
 
 | Action                             | Default |

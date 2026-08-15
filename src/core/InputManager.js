@@ -93,6 +93,16 @@ export class InputManager {
     return code.replace('Key', '').replace('Digit', '').replace('Arrow', '');
   }
 
+  // Prompt prefix for an action: names the on-screen button on touch
+  // layouts, the bound key otherwise.
+  promptFor(action) {
+    if (document.body.classList.contains('touch')) {
+      const touchNames = { interact: 'USE', drop: 'DROP', inventory: 'BOX' };
+      if (touchNames[action]) return `Tap ${touchNames[action]}`;
+    }
+    return `Press ${this.keyLabel(action)}`;
+  }
+
   static get actionLabels() {
     return ACTION_LABELS;
   }

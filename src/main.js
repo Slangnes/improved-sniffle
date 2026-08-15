@@ -6,6 +6,7 @@ import { MazeScene } from './maze/MazeScene.js';
 import { InventoryScene } from './inventory/InventoryScene.js';
 import { ModalManager } from './ui/Modal.js';
 import { FlattenTransition } from './transition/FlattenTransition.js';
+import { TouchControls } from './ui/TouchControls.js';
 import * as HUD from './ui/HUD.js';
 
 const canvas = document.getElementById('scene');
@@ -19,6 +20,7 @@ const gameState = new GameState();
 const audio = new AudioManager();
 const modal = new ModalManager({ input, gameState, audio });
 const transition = new FlattenTransition();
+const touchControls = new TouchControls({ input });
 
 let current;
 
@@ -118,4 +120,4 @@ window.addEventListener('keydown', (e) => {
 
 frame();
 
-window.__box = { gameState, input, audio, inventoryScene, mazeScene, get current() { return current; } };
+window.__box = { gameState, input, audio, touchControls, inventoryScene, mazeScene, get current() { return current; } };

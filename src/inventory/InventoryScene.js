@@ -330,7 +330,7 @@ export class InventoryScene {
     const nearestSlot = carrying ? this._nearestEmptySlot(this.playerX, this.playerZ) : null;
 
     if (nearestId) {
-      this.prompt = `Press ${this.input.keyLabel('interact')} to pick up the ${ITEM_LABELS[nearestId.id]}`;
+      this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestId.id]}`;
       if (this.input.wasPressed('interact')) {
         this.gameState.pickUp(nearestId.id);
         this.scene.remove(this.itemMeshes.get(nearestId.id));
@@ -339,13 +339,13 @@ export class InventoryScene {
         this.audio.playPickup();
       }
     } else if (nearestSlot) {
-      this.prompt = `Press ${this.input.keyLabel('drop')} to place the ${ITEM_LABELS[carrying]} on the shelf`;
+      this.prompt = `${this.input.promptFor('drop')} to place the ${ITEM_LABELS[carrying]} on the shelf`;
     } else if (nearestInteractable) {
       if (nearestInteractable.kind === 'ladder') {
-        this.prompt = `Press ${this.input.keyLabel('interact')} to climb out`;
+        this.prompt = `${this.input.promptFor('interact')} to climb out`;
         if (this.input.wasPressed('interact')) this.onClimbOut();
       } else {
-        this.prompt = `Press ${this.input.keyLabel('interact')} to look at the ${nearestInteractable.label}`;
+        this.prompt = `${this.input.promptFor('interact')} to look at the ${nearestInteractable.label}`;
         if (this.input.wasPressed('interact')) {
           this.audio.playInteract();
           this.onOpenModal(nearestInteractable.modal);

@@ -322,7 +322,7 @@ export class MazeScene {
     }
 
     if (nearestId) {
-      this.prompt = `Press ${this.input.keyLabel('interact')} to pick up the ${ITEM_LABELS[nearestId]}`;
+      this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestId]}`;
       if (this.input.wasPressed('interact')) {
         this.gameState.pickUp(nearestId);
         this.scene.remove(this.itemMeshes.get(nearestId));
@@ -331,7 +331,7 @@ export class MazeScene {
         this.audio.playPickup();
       }
     } else {
-      this.prompt = `Press ${this.input.keyLabel('inventory')} to look into your box`;
+      this.prompt = `${this.input.promptFor('inventory')} to look into your box`;
     }
 
     if (this.input.wasPressed('drop')) {

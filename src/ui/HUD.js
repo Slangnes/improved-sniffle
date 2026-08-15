@@ -12,18 +12,35 @@ export function updateModeAndObjective(sceneName, gameState) {
   objectiveLabel.textContent = gameState.currentObjectiveText();
 }
 
+// Tapping a slot icon toggles that overlay — same path as pressing its key.
+slotsWrap.addEventListener('click', (e) => {
+  const code = e.target.closest('.slot')?.dataset.code;
+  if (!code) return;
+  window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+  window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+});
+
+let slotsCacheKey = null;
+
 export function updateSlots(gameState, input) {
-  slotsWrap.innerHTML = '';
   const defs = [
     { id: 'compass', key: 'slot1', icon: '⟐', active: gameState.activeCompass },
     { id: 'map', key: 'slot2', icon: '⚑', active: gameState.activeMap },
   ];
+  const cacheKey = defs
+    .map((d) => (gameState.hasItem(d.id) ? `${d.id}:${d.active ? 1 : 0}:${input.bindings[d.key]}` : ''))
+    .join('|');
+  if (cacheKey === slotsCacheKey) return;
+  slotsCacheKey = cacheKey;
+
+  slotsWrap.innerHTML = '';
   for (const d of defs) {
     if (!gameState.hasItem(d.id)) continue;
     const el = document.createElement('div');
     el.className = 'slot' + (d.active ? ' active' : '');
     el.textContent = d.icon;
     el.title = `${d.id} (${input.keyLabel(d.key)})`;
+    el.dataset.code = input.bindings[d.key];
     slotsWrap.appendChild(el);
   }
 }
