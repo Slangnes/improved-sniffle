@@ -23,9 +23,10 @@ const ITEM_MESH_DEFS = {
 const ITEM_LABELS = { compass: 'Compass', map: 'Map' };
 
 export class InventoryScene {
-  constructor({ gameState, input, onOpenModal, onClimbOut }) {
+  constructor({ gameState, input, audio, onOpenModal, onClimbOut }) {
     this.gameState = gameState;
     this.input = input;
+    this.audio = audio;
     this.onOpenModal = onOpenModal;
     this.onClimbOut = onClimbOut;
 
@@ -260,6 +261,7 @@ export class InventoryScene {
 
     this.playerMesh.position.set(this.playerX, 0, this.playerZ);
     this.playerMesh.rotation.y = this.facing;
+    this.audio.updateFootsteps(ix !== 0 || iz !== 0, 'wood', dt);
 
     const camDist = 6.5;
     const camHeight = 7.5;
@@ -298,6 +300,7 @@ export class InventoryScene {
         this.scene.remove(this.itemMeshes.get(nearestId.id));
         this.itemMeshes.delete(nearestId.id);
         this.setToast(`Picked up the ${ITEM_LABELS[nearestId.id]}.`, 2);
+        this.audio.playPickup();
       }
     } else if (nearestInteractable) {
       if (nearestInteractable.kind === 'ladder') {
@@ -305,7 +308,10 @@ export class InventoryScene {
         if (this.input.wasPressed('interact')) this.onClimbOut();
       } else {
         this.prompt = `Press ${this.input.keyLabel('interact')} to look at the ${nearestInteractable.label}`;
-        if (this.input.wasPressed('interact')) this.onOpenModal(nearestInteractable.modal);
+        if (this.input.wasPressed('interact')) {
+          this.audio.playInteract();
+          this.onOpenModal(nearestInteractable.modal);
+        }
       }
     } else {
       this.prompt = null;
@@ -318,6 +324,7 @@ export class InventoryScene {
         this.gameState.drop(toDrop, 'inventory', this.playerX, this.playerZ);
         this._syncItemMeshes();
         this.setToast(`Put down the ${ITEM_LABELS[toDrop]}.`, 2);
+        this.audio.playDrop();
       }
     }
 

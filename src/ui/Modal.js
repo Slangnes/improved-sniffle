@@ -1,9 +1,10 @@
 import { InputManager } from '../core/InputManager.js';
 
 export class ModalManager {
-  constructor({ input, gameState }) {
+  constructor({ input, gameState, audio }) {
     this.input = input;
     this.gameState = gameState;
+    this.audio = audio;
 
     this.layer = document.getElementById('modal-layer');
     this.content = document.getElementById('modal-content');
@@ -34,10 +35,12 @@ export class ModalManager {
     (builders[id] || (() => this._fallback(id)))();
     this.layer.classList.remove('hidden');
     if (document.pointerLockElement) document.exitPointerLock();
+    this.audio.playModalOpen();
   }
 
   close() {
     this.layer.classList.add('hidden');
+    this.audio.playModalClose();
   }
 
   _fallback(id) {
@@ -63,6 +66,7 @@ export class ModalManager {
         <li>Q to drop a carried item</li>
         <li>I to look into your box, or climb out of it</li>
         <li>1 / 2 to toggle the compass / map overlays</li>
+        <li>M to mute all audio</li>
       </ul>`;
   }
 
@@ -83,6 +87,7 @@ export class ModalManager {
         this.input.listenForRebind(action, () => {
           button.textContent = this.input.keyLabel(action);
           button.classList.remove('listening');
+          this.audio.playRebindConfirm();
         });
       });
       row.append(label, button);
@@ -108,6 +113,48 @@ export class ModalManager {
     sensInput.addEventListener('input', () => this.input.setSensitivity(parseFloat(sensInput.value)));
     sensRow.append(sensLabel, sensInput);
     wrap.appendChild(sensRow);
+
+    const musicRow = document.createElement('div');
+    musicRow.className = 'keybind-row';
+    const musicLabel = document.createElement('span');
+    musicLabel.textContent = 'Music Volume';
+    const musicInput = document.createElement('input');
+    musicInput.type = 'range';
+    musicInput.min = '0';
+    musicInput.max = '1';
+    musicInput.step = '0.05';
+    musicInput.value = String(this.audio.musicVolume);
+    musicInput.addEventListener('input', () => this.audio.setMusicVolume(parseFloat(musicInput.value)));
+    musicRow.append(musicLabel, musicInput);
+    wrap.appendChild(musicRow);
+
+    const sfxRow = document.createElement('div');
+    sfxRow.className = 'keybind-row';
+    const sfxLabel = document.createElement('span');
+    sfxLabel.textContent = 'Sound Effects Volume';
+    const sfxInput = document.createElement('input');
+    sfxInput.type = 'range';
+    sfxInput.min = '0';
+    sfxInput.max = '1';
+    sfxInput.step = '0.05';
+    sfxInput.value = String(this.audio.sfxVolume);
+    sfxInput.addEventListener('input', () => {
+      this.audio.setSfxVolume(parseFloat(sfxInput.value));
+      this.audio.playInteract();
+    });
+    sfxRow.append(sfxLabel, sfxInput);
+    wrap.appendChild(sfxRow);
+
+    const muteRow = document.createElement('div');
+    muteRow.className = 'keybind-row';
+    const muteLabel = document.createElement('span');
+    muteLabel.textContent = `Mute All Audio (${this.input.keyLabel('mute')})`;
+    const muteInput = document.createElement('input');
+    muteInput.type = 'checkbox';
+    muteInput.checked = this.audio.muted;
+    muteInput.addEventListener('change', () => this.audio.setMuted(muteInput.checked));
+    muteRow.append(muteLabel, muteInput);
+    wrap.appendChild(muteRow);
 
     const resetRow = document.createElement('div');
     resetRow.className = 'keybind-row';

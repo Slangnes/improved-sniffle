@@ -25,9 +25,10 @@ const ITEM_MESH_DEFS = {
 const ITEM_LABELS = { compass: 'Compass', map: 'Map' };
 
 export class MazeScene {
-  constructor({ gameState, input, onLayerComplete, onRunComplete, onRequestBox }) {
+  constructor({ gameState, input, audio, onLayerComplete, onRunComplete, onRequestBox }) {
     this.gameState = gameState;
     this.input = input;
+    this.audio = audio;
     this.onLayerComplete = onLayerComplete;
     this.onRunComplete = onRunComplete;
     this.onRequestBox = onRequestBox;
@@ -299,6 +300,7 @@ export class MazeScene {
 
     const cell = this.currentCellCoord();
     this.visitedCells.add(`${cell.x},${cell.y}`);
+    this.audio.updateFootsteps(ix !== 0 || iz !== 0, 'stone', dt);
 
     this.camera.position.set(this.playerX, PLAYER_HEIGHT, this.playerZ);
     this.camera.rotation.y = this.yaw;
@@ -329,6 +331,7 @@ export class MazeScene {
         this.scene.remove(this.itemMeshes.get(nearestId));
         this.itemMeshes.delete(nearestId);
         this.setToast(`Picked up the ${ITEM_LABELS[nearestId]}.`, 2);
+        this.audio.playPickup();
       }
     } else {
       this.prompt = `Press ${this.input.keyLabel('inventory')} to look into your box`;
@@ -341,6 +344,7 @@ export class MazeScene {
         this.gameState.drop(toDrop, 'maze', this.playerX, this.playerZ);
         this._syncItemMeshes();
         this.setToast(`Dropped the ${ITEM_LABELS[toDrop]}.`, 2);
+        this.audio.playDrop();
       }
     }
 

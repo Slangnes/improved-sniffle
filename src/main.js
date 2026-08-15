@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { InputManager } from './core/InputManager.js';
 import { GameState } from './core/GameState.js';
+import { AudioManager } from './audio/AudioManager.js';
 import { MazeScene } from './maze/MazeScene.js';
 import { InventoryScene } from './inventory/InventoryScene.js';
 import { ModalManager } from './ui/Modal.js';
@@ -15,7 +16,8 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const input = new InputManager();
 const gameState = new GameState();
-const modal = new ModalManager({ input, gameState });
+const audio = new AudioManager();
+const modal = new ModalManager({ input, gameState, audio });
 const transition = new FlattenTransition();
 
 let current;
@@ -23,6 +25,7 @@ let current;
 const inventoryScene = new InventoryScene({
   gameState,
   input,
+  audio,
   onOpenModal: (id) => modal.open(id),
   onClimbOut: () => toggleBox(),
 });
@@ -30,9 +33,10 @@ const inventoryScene = new InventoryScene({
 const mazeScene = new MazeScene({
   gameState,
   input,
+  audio,
   onRequestBox: () => toggleBox(),
-  onLayerComplete: () => {},
-  onRunComplete: () => {},
+  onLayerComplete: () => audio.playLayerExtend(),
+  onRunComplete: () => audio.playRunComplete(),
 });
 
 current = inventoryScene;
@@ -41,10 +45,12 @@ gameState.setScene('inventory');
 async function toggleBox() {
   if (transition.playing || modal.isOpen()) return;
   const goingToMaze = current === inventoryScene;
+  audio.playClimb();
   await transition.play(() => {
     current = goingToMaze ? mazeScene : inventoryScene;
     gameState.setScene(goingToMaze ? 'maze' : 'inventory');
     current.onResize();
+    audio.startMusic(goingToMaze ? 'maze' : 'box');
   });
 }
 
@@ -64,6 +70,9 @@ window.addEventListener('resize', () => {
 document.getElementById('start-button').addEventListener('click', () => {
   document.getElementById('start-overlay').classList.add('hidden');
   clock.start();
+  audio.init();
+  audio.resume();
+  audio.startMusic('box');
 });
 
 const clock = new THREE.Clock(false);
@@ -103,13 +112,18 @@ window.addEventListener('keydown', (e) => {
   if (input.bindings.slot1 === e.code && gameState.hasItem('compass')) {
     gameState.activeCompass = !gameState.activeCompass;
     gameState.save();
+    audio.playToggle(gameState.activeCompass);
   }
   if (input.bindings.slot2 === e.code && gameState.hasItem('map')) {
     gameState.activeMap = !gameState.activeMap;
     gameState.save();
+    audio.playToggle(gameState.activeMap);
+  }
+  if (input.bindings.mute === e.code) {
+    audio.toggleMuted();
   }
 });
 
 frame();
 
-window.__box = { gameState, input, inventoryScene, mazeScene, get current() { return current; } };
+window.__box = { gameState, input, audio, inventoryScene, mazeScene, get current() { return current; } };

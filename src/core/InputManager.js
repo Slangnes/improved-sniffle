@@ -8,6 +8,7 @@ const DEFAULT_BINDINGS = {
   drop: 'KeyQ',
   slot1: 'Digit1',
   slot2: 'Digit2',
+  mute: 'KeyM',
 };
 
 const ACTION_LABELS = {
@@ -20,6 +21,7 @@ const ACTION_LABELS = {
   drop: 'Drop Item',
   slot1: 'Use Slot 1',
   slot2: 'Use Slot 2',
+  mute: 'Toggle Mute',
 };
 
 const STORAGE_KEY = 'box-and-bones:bindings';
