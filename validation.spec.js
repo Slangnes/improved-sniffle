@@ -139,6 +139,58 @@ const mazeCellChanged = () => {
 const mazeFacingChanged = () =>
   window.__box.mazeScene.facing !== window.__box.mazeScene.__vFacing;
 
+// Genuinely play a maze layer to its exit: breadth-first search the wall
+// grid from the player's current cell, then walk the path with real
+// inputs. Each step is issued facing-relative (forward / strafe / back),
+// so the whole walk is ordinary legal play — no teleporting.
+async function walkMazeToExit(page) {
+  const path = await page.evaluate(() => {
+    const m = window.__box.mazeScene;
+    const DIRS = [
+      { wall: 'N', dx: 0, dy: -1 },
+      { wall: 'E', dx: 1, dy: 0 },
+      { wall: 'S', dx: 0, dy: 1 },
+      { wall: 'W', dx: -1, dy: 0 },
+    ];
+    const key = (x, y) => `${x},${y}`;
+    const goal = m.world.exit;
+    const prev = new Map([[key(m.cellX, m.cellY), null]]);
+    const queue = [{ x: m.cellX, y: m.cellY }];
+    while (queue.length) {
+      const cur = queue.shift();
+      if (cur.x === goal.x && cur.y === goal.y) break;
+      const cell = m.world.cellAt(cur.x, cur.y);
+      DIRS.forEach((d, i) => {
+        if (cell[d.wall]) return;
+        const nx = cur.x + d.dx;
+        const ny = cur.y + d.dy;
+        if (prev.has(key(nx, ny))) return;
+        prev.set(key(nx, ny), { x: cur.x, y: cur.y, dir: i });
+        queue.push({ x: nx, y: ny });
+      });
+    }
+    const dirs = [];
+    let p = prev.get(key(goal.x, goal.y));
+    while (p) {
+      dirs.unshift(p.dir);
+      p = prev.get(key(p.x, p.y));
+    }
+    return dirs;
+  });
+  expect(path.length).toBeGreaterThan(0);
+  for (const dir of path) {
+    const key = await page.evaluate(
+      (d) => 'wdsa'[(d - window.__box.mazeScene.facing + 4) % 4],
+      dir
+    );
+    await markMaze(page);
+    if (!(await mazeAction(page, key, mazeCellChanged, 4000))) {
+      throw new Error(`maze walk blocked unexpectedly (dir ${dir})`);
+    }
+  }
+  return path.length;
+}
+
 async function mazeAction(page, key, changed, maxHoldMs = 2000) {
   await page.keyboard.down(key);
   const start = Date.now();
@@ -156,7 +208,9 @@ async function mazeAction(page, key, changed, maxHoldMs = 2000) {
 }
 
 test('validation.md contract', async ({ page }) => {
-  test.setTimeout(600000);
+  // The maze layers are genuinely walked (V16), and their randomly carved
+  // paths vary in length run to run — budget for an unlucky maze.
+  test.setTimeout(900000);
 
   const errors = [];
   page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
@@ -495,25 +549,15 @@ test('validation.md contract', async ({ page }) => {
     await expect(page.locator('#compass-wrap')).toBeVisible();
   });
 
-  await test.step('V16: exits nest new layers, then a run resets', async () => {
-    const teleportToExit = () =>
-      page.evaluate(() => {
-        const m = window.__box.mazeScene;
-        m.cellX = m.world.exit.x;
-        m.cellY = m.world.exit.y;
-        const pos = m.world.worldPos(m.cellX, m.cellY);
-        m.playerX = pos.x;
-        m.playerZ = pos.z;
-      });
-
+  await test.step('V16: walking to each exit nests new layers, then a run resets', async () => {
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(3);
-    await teleportToExit();
+    await walkMazeToExit(page);
     await page.waitForFunction(() => window.__box.gameState.mazeLayer === 2, null, { timeout: 10000 });
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(7);
-    await teleportToExit();
+    await walkMazeToExit(page);
     await page.waitForFunction(() => window.__box.gameState.mazeLayer === 3, null, { timeout: 10000 });
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(11);
-    await teleportToExit();
+    await walkMazeToExit(page);
     await page.waitForFunction(() => window.__box.gameState.runsCompleted === 1, null, {
       timeout: 10000,
     });

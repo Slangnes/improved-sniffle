@@ -123,10 +123,13 @@ floating modal card). Closing flies the camera back out.
   into a wall moves zero cells.
 - **V15 — Compass and map overlays** show while carried and active; keys
   1 / 2 toggle them.
-- **V16 — Talisman-style nested layers.** Exit extends the maze 1 → 2 → 3
-  (half-extent 3 → 7 → 11), then a completed run resets to a fresh
-  layer 1 and increments the run counter. *(Validated logic-level by
-  teleporting the logical cell to the exit.)*
+- **V16 — Talisman-style nested layers, genuinely walked.** The spec
+  **plays the maze for real**: it pathfinds over the carved walls from the
+  player's cell and walks to the exit with ordinary step/strafe inputs —
+  no teleporting — for each ring. Reaching the exit extends the maze
+  1 → 2 → 3 (half-extent 3 → 7 → 11), then walking the third exit
+  completes the run, resets to a fresh layer 1, and increments the run
+  counter. The full walk is visible step by step in the trace.
 - **V17 — Per-hand drops in the maze.** A hand's key drops its item at the
   player (posters lie as scrolls); F picks back up into a free hand.
 - **V18 — I returns to the box** (from the maze only), with the box music.
