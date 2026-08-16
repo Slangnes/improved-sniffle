@@ -374,6 +374,91 @@ body.in-box #box-entry {
   border-bottom-color: #e8c96a;
 }
 
+/* The bookshelf view keeps the real 3D shelves visible: the panel itself
+   is clear, and only the listing chips carry a surface. */
+#modal-box.panel-shelf {
+  color: #e8dfc8;
+  overflow: visible;
+}
+
+#modal-box.panel-shelf #modal-content {
+  padding: 3% 5%;
+  overflow: visible;
+}
+
+#modal-box.panel-shelf #modal-content h2 {
+  display: block;
+  border: none;
+  text-align: center;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-size: 15px;
+  color: #c9b98a;
+  text-shadow: 0 1px 4px #000;
+  margin-bottom: 4%;
+}
+
+.shelf-listing {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.shelf-level {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  margin: 2.5% 0;
+}
+
+.shelf-level-name {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #c9b98a;
+  text-shadow: 0 1px 3px #000;
+  min-width: 92px;
+  text-align: right;
+}
+
+.shelf-chip {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 14px;
+  min-width: 130px;
+  text-align: center;
+  background: rgba(20, 14, 8, 0.82);
+  border: 1px solid #7a6a45;
+  color: #e8dfc8;
+  cursor: default;
+}
+
+button.shelf-chip {
+  cursor: pointer;
+  border-color: #e8c96a;
+  box-shadow: 0 0 8px #e8c96a33;
+}
+
+button.shelf-chip:hover {
+  background: rgba(122, 106, 69, 0.6);
+}
+
+.shelf-chip.empty {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.shelf-note {
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+  color: #c9b98a;
+  text-shadow: 0 1px 3px #000;
+  margin: 2% 0 0;
+}
+
 /* Carried-item inspection: a small parchment scrap held up to the eye. */
 #modal-box.panel-item {
   width: min(520px, 88vw);
@@ -592,10 +677,16 @@ body.touch #touch-controls {
 }
 
 /* The box diorama never rotates, so there is nothing to turn: inside the
-   box the turn buttons disappear (the pad keeps its shape for the maze). */
+   box the turn buttons disappear (the pad keeps its shape for the maze) —
+   unless you are carrying furniture, when they return to rotate it. */
 body.in-box .tc-btn.tc-turn {
   visibility: hidden;
   pointer-events: none;
+}
+
+body.in-box.carrying .tc-btn.tc-turn {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* the two hand-drop buttons sit side by side, mirroring the hands */

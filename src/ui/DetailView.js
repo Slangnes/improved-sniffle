@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { InputManager } from '../core/InputManager.js';
-import { POSTER_IDS, ITEM_LABELS } from '../core/GameState.js';
+import { POSTER_IDS, ITEM_LABELS, SHELF_SLOT_COUNT } from '../core/GameState.js';
 import { drawMinimapInto } from './HUD.js';
 
 const ZOOM_IN_DURATION = 0.55;
@@ -278,6 +278,7 @@ export class DetailView {
       'poster-settings': () => this._settings(),
       bulletin: () => this._bulletin(),
       desk: () => this._desk(),
+      bookshelf: () => this._bookshelf(),
       compass: () => this._compassItem(),
       map: () => this._mapItem(),
     };
@@ -462,8 +463,67 @@ export class DetailView {
       <p>A ledger, half-filled in your own hand.</p>
       <div class="objective-row"><span>Current maze layer:</span><span>${g.mazeLayer} / 3</span></div>
       <div class="objective-row"><span>Full runs completed:</span><span>${g.runsCompleted}</span></div>
+      <div class="objective-row"><span>Steps walked:</span><span>${g.stepsTaken}</span></div>
       <div class="objective-row"><span>Items carried:</span><span>${carriedNames || 'none'}</span></div>
     `;
+  }
+
+  // Looking into the bookshelf: the camera hangs in front of the case's
+  // open side, the shelves themselves visible behind a translucent
+  // listing of what rests where. Taking something happens right here.
+  _bookshelf() {
+    this.content.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'shelf-listing';
+    wrap.innerHTML = `<h2>Bookshelf</h2>`;
+
+    const levels = [
+      { label: 'Upper shelf', slots: [2, 3] },
+      { label: 'Lower shelf', slots: [0, 1] },
+    ];
+    for (const level of levels) {
+      const row = document.createElement('div');
+      row.className = 'shelf-level';
+      const name = document.createElement('span');
+      name.className = 'shelf-level-name';
+      name.textContent = level.label;
+      row.appendChild(name);
+      for (const slot of level.slots.filter((s) => s < SHELF_SLOT_COUNT)) {
+        const id = this.gameState.shelfSlotOccupant(slot);
+        const chip = document.createElement(id && this.gameState.freeHand() ? 'button' : 'span');
+        chip.className = 'shelf-chip' + (id ? '' : ' empty');
+        if (id) {
+          chip.textContent = ITEM_LABELS[id];
+          if (this.gameState.freeHand()) {
+            chip.dataset.take = id;
+            chip.addEventListener('click', () => {
+              const hand = this.gameState.pickUp(id);
+              this.audio.playPickup();
+              if (this.inventoryScene) {
+                this.inventoryScene.setToast(
+                  `Took the ${ITEM_LABELS[id]} in your ${hand} hand.`,
+                  2
+                );
+              }
+              this._bookshelf(); // re-render with the slot now empty
+            });
+            chip.title = `Take the ${ITEM_LABELS[id]}`;
+          }
+        } else {
+          chip.textContent = '— empty —';
+        }
+        row.appendChild(chip);
+      }
+      wrap.appendChild(row);
+    }
+
+    const note = document.createElement('p');
+    note.className = 'shelf-note';
+    note.textContent = this.gameState.freeHand()
+      ? 'Tap a thing to take it. The bottom row of books refuses to be alphabetized.'
+      : 'Your hands are full. The books, at least, are staying put.';
+    wrap.appendChild(note);
+    this.content.appendChild(wrap);
   }
 
   _compassItem() {

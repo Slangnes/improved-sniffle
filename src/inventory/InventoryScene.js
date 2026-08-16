@@ -127,6 +127,15 @@ const rowToZ = (r) => -4 + r * CELL;
 const xToCol = (x) => Math.round((x + 5) / CELL);
 const zToRow = (z) => Math.round((z + 4) / CELL);
 
+// Rotate a local (dx, dz) offset by a furniture orientation: one step is a
+// quarter-turn clockwise on screen, matching a group rotation.y of -π/2.
+function rotOffset(dx, dz, rot) {
+  for (let i = 0; i < ((rot % 4) + 4) % 4; i++) {
+    [dx, dz] = [-dz, dx];
+  }
+  return { dx, dz };
+}
+
 function easeInOutQuad(t) {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
@@ -357,26 +366,35 @@ export class InventoryScene {
     }
   }
 
-  _furnitureCenter(id) {
+  // Footprint dimensions in tiles for a given orientation: a quarter-turn
+  // swaps width and depth.
+  _furnitureDims(id, rot) {
     const def = FURNITURE_DEFS[id];
+    return rot % 2 === 0 ? { w: def.w, h: def.h } : { w: def.h, h: def.w };
+  }
+
+  _furnitureCenter(id) {
     const at = this.gameState.furniture[id];
+    const dims = this._furnitureDims(id, at.rot);
     return {
-      x: colToX(at.col) + ((def.w - 1) / 2) * CELL,
-      z: rowToZ(at.row) + ((def.h - 1) / 2) * CELL,
+      x: colToX(at.col) + ((dims.w - 1) / 2) * CELL,
+      z: rowToZ(at.row) + ((dims.h - 1) / 2) * CELL,
     };
   }
 
   _placeFurniture(id) {
     const c = this._furnitureCenter(id);
-    this.furnitureGroups[id].position.set(c.x, 0, c.z);
+    const g = this.furnitureGroups[id];
+    g.position.set(c.x, 0, c.z);
+    g.rotation.y = (-this.gameState.furniture[id].rot * Math.PI) / 2;
   }
 
   _furnitureTiles(id) {
-    const def = FURNITURE_DEFS[id];
     const at = this.gameState.furniture[id];
+    const dims = this._furnitureDims(id, at.rot);
     const tiles = [];
-    for (let c = at.col; c < at.col + def.w; c++) {
-      for (let r = at.row; r < at.row + def.h; r++) tiles.push({ col: c, row: r });
+    for (let c = at.col; c < at.col + dims.w; c++) {
+      for (let r = at.row; r < at.row + dims.h; r++) tiles.push({ col: c, row: r });
     }
     return tiles;
   }
@@ -425,39 +443,64 @@ export class InventoryScene {
     return g;
   }
 
+  // A proper writing desk: an overhanging top on two drawer pedestals,
+  // with the ledger, an inkwell, and a quill laid out on it.
   _buildDeskGroup() {
     const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: 0x704d2a, roughness: 0.7 });
-    const top = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 0.9), mat);
-    top.position.y = 0.9;
-    g.add(top);
+    const wood = new THREE.MeshStandardMaterial({ color: 0x704d2a, roughness: 0.7 });
+    const woodDark = new THREE.MeshStandardMaterial({ color: 0x53381e, roughness: 0.8 });
+    const brass = new THREE.MeshStandardMaterial({ color: 0xb08a3e, metalness: 0.5, roughness: 0.4 });
+
+    const add = (geo, mat, x, y, z) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      g.add(m);
+      return m;
+    };
+
+    add(new THREE.BoxGeometry(1.8, 0.1, 0.95), wood, 0, 0.9, 0); // top
+    add(new THREE.BoxGeometry(1.84, 0.04, 0.99), woodDark, 0, 0.84, 0); // apron trim
+
+    // Drawer pedestals with fronts and brass knobs.
+    for (const side of [-0.62, 0.62]) {
+      add(new THREE.BoxGeometry(0.52, 0.82, 0.8), wood, side, 0.41, 0);
+      for (const dy of [0.6, 0.34]) {
+        add(new THREE.BoxGeometry(0.44, 0.2, 0.03), woodDark, side, dy, 0.41);
+        add(new THREE.SphereGeometry(0.025, 8, 8), brass, side, dy, 0.44);
+      }
+      add(new THREE.BoxGeometry(0.56, 0.05, 0.84), woodDark, side, 0.025, 0); // plinth
+    }
+
     // The ledger: a paper sheet on the desktop that the detailed view reads.
     const paper = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.2, 0.8),
+      new THREE.PlaneGeometry(1.0, 0.7),
       new THREE.MeshStandardMaterial({ color: 0xefe6c8, roughness: 0.9 })
     );
     paper.rotation.x = -Math.PI / 2;
     paper.rotation.z = 0.06;
-    paper.position.y = 0.965;
+    paper.position.set(-0.15, 0.955, 0.02);
     g.add(paper);
-    const legGeo = new THREE.BoxGeometry(0.1, 0.9, 0.1);
-    [
-      [-0.7, -0.35],
-      [0.7, -0.35],
-      [-0.7, 0.35],
-      [0.7, 0.35],
-    ].forEach(([dx, dz]) => {
-      const leg = new THREE.Mesh(legGeo, mat);
-      leg.position.set(dx, 0.45, dz);
-      g.add(leg);
-    });
+
+    // Inkwell and a resting quill.
+    add(new THREE.CylinderGeometry(0.05, 0.06, 0.09, 10), woodDark, 0.62, 1.0, -0.28);
+    add(new THREE.CylinderGeometry(0.02, 0.03, 0.02, 8), brass, 0.62, 1.05, -0.28);
+    const quill = new THREE.Mesh(
+      new THREE.ConeGeometry(0.025, 0.42, 6),
+      new THREE.MeshStandardMaterial({ color: 0xe8e2d0, roughness: 0.6 })
+    );
+    quill.position.set(0.55, 1.01, -0.1);
+    quill.rotation.z = 1.35;
+    quill.rotation.y = 0.5;
+    g.add(quill);
+
     return g;
   }
 
   shelfSlotWorld(i) {
     const c = this._furnitureCenter('bookshelf');
     const s = SHELF_SLOTS[i];
-    return { x: c.x + s.dx, z: c.z + s.dz, y: s.y };
+    const o = rotOffset(s.dx, s.dz, this.gameState.furniture.bookshelf.rot);
+    return { x: c.x + o.dx, z: c.z + o.dz, y: s.y };
   }
 
   // ---------- player ----------
@@ -553,17 +596,34 @@ export class InventoryScene {
   }
 
   getFocusPose(id) {
-    // The desk moves around the room, so its pose is computed fresh.
+    // The furniture moves (and turns), so its poses are computed fresh
+    // from wherever each piece stands right now.
     if (id === 'desk') {
       const c = this._furnitureCenter('desk');
+      const rot = this.gameState.furniture.desk.rot;
+      const o = rotOffset(0, 1.2, rot); // hover behind the ledger's edge
       return {
         look: new THREE.Vector3(c.x, 0.95, c.z),
-        camPos: new THREE.Vector3(c.x, 3.4, c.z + 1.2),
+        camPos: new THREE.Vector3(c.x + o.dx, 3.4, c.z + o.dz),
         viewHeight: 2.0,
-        contentW: 1.2,
-        contentH: 0.75,
+        contentW: 1.0,
+        contentH: 0.68,
         panelClass: 'panel-paper',
         zoom: FRUSTUM_HEIGHT / 2.0,
+      };
+    }
+    if (id === 'bookshelf') {
+      const c = this._furnitureCenter('bookshelf');
+      const rot = this.gameState.furniture.bookshelf.rot;
+      const o = rotOffset(3.4, 0, rot); // face the open side, wherever it points
+      return {
+        look: new THREE.Vector3(c.x, 1.2, c.z),
+        camPos: new THREE.Vector3(c.x + o.dx, 1.2, c.z + o.dz),
+        viewHeight: 3.3,
+        contentW: 3.04,
+        contentH: 2.45,
+        panelClass: 'panel-shelf',
+        zoom: FRUSTUM_HEIGHT / 3.3,
       };
     }
     const pose = this.focusPoses.get(id);
@@ -655,6 +715,7 @@ export class InventoryScene {
     this.playerZ = rowToZ(this.row);
     this.isAnimating = false;
     this.grabbing = null;
+    document.body.classList.remove('carrying');
   }
 
   setToast(message, seconds) {
@@ -674,12 +735,12 @@ export class InventoryScene {
   }
 
   // Whether a piece of furniture could stand with its footprint anchored
-  // at (col, row): inside the room, off the ladder's tile, clear of other
-  // furniture and of anything lying on the floor.
-  _furniturePlacementBlocked(id, col, row) {
-    const def = FURNITURE_DEFS[id];
-    for (let c = col; c < col + def.w; c++) {
-      for (let r = row; r < row + def.h; r++) {
+  // at (col, row) in orientation rot: inside the room, off the ladder's
+  // tile, clear of other furniture and of anything lying on the floor.
+  _furniturePlacementBlocked(id, col, row, rot) {
+    const dims = this._furnitureDims(id, rot);
+    for (let c = col; c < col + dims.w; c++) {
+      for (let r = row; r < row + dims.h; r++) {
         if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return true;
         if (c === LADDER_TILE.col && r === LADDER_TILE.row) return true;
         if (this._tileBlocked(c, r, id)) return true;
@@ -698,6 +759,7 @@ export class InventoryScene {
     this.animTo = { x: colToX(this.col), z: rowToZ(this.row) };
     this.animT = 0;
     this.isAnimating = true;
+    this.gameState.stepsTaken += 1;
     this.audio.footstep('wood');
   }
 
@@ -711,12 +773,12 @@ export class InventoryScene {
       const fRow = at.row + dir.dz;
       if (
         this._tileBlocked(this.col + dir.dx, this.row + dir.dz, this.grabbing) ||
-        this._furniturePlacementBlocked(this.grabbing, fCol, fRow)
+        this._furniturePlacementBlocked(this.grabbing, fCol, fRow, at.rot)
       ) {
         this.audio.playBump();
         return;
       }
-      this.gameState.furniture[this.grabbing] = { col: fCol, row: fRow };
+      this.gameState.furniture[this.grabbing] = { ...at, col: fCol, row: fRow };
       this._beginStep(dir.dx, dir.dz);
       return;
     }
@@ -725,6 +787,59 @@ export class InventoryScene {
       return;
     }
     this._beginStep(dir.dx, dir.dz);
+  }
+
+  // Rotate the carried piece a quarter-turn (dir +1 is clockwise on
+  // screen). It pivots about its center when it can; if the swung
+  // footprint would land on you, the carrier holds it at arm's length —
+  // the pivot nudges a tile away from you (or wherever else it fits).
+  // Refused only if no pivot is clear of walls, furniture, floor items,
+  // the ladder tile, and you.
+  _tryRotate(dir) {
+    const id = this.grabbing;
+    if (!id) return;
+    const at = this.gameState.furniture[id];
+    const newRot = (at.rot + dir + 4) % 4;
+    const oldDims = this._furnitureDims(id, at.rot);
+    const newDims = this._furnitureDims(id, newRot);
+    const centerCol = at.col + (oldDims.w - 1) / 2;
+    const centerRow = at.row + (oldDims.h - 1) / 2;
+    const baseCol = Math.floor(centerCol - (newDims.w - 1) / 2 + 0.001);
+    const baseRow = Math.floor(centerRow - (newDims.h - 1) / 2 + 0.001);
+
+    const awayC = Math.sign(centerCol - this.col);
+    const awayR = Math.sign(centerRow - this.row);
+    const nudges = [
+      [0, 0],
+      ...(awayC ? [[awayC, 0]] : []),
+      ...(awayR ? [[0, awayR]] : []),
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ].filter(([dc, dr], i, arr) => arr.findIndex(([c, r]) => c === dc && r === dr) === i);
+
+    for (const [dc, dr] of nudges) {
+      const col = baseCol + dc;
+      const row = baseRow + dr;
+      let coversPlayer = false;
+      for (let c = col; c < col + newDims.w && !coversPlayer; c++) {
+        for (let r = row; r < row + newDims.h; r++) {
+          if (c === this.col && r === this.row) {
+            coversPlayer = true;
+            break;
+          }
+        }
+      }
+      if (coversPlayer || this._furniturePlacementBlocked(id, col, row, newRot)) continue;
+      this.gameState.furniture[id] = { col, row, rot: newRot };
+      const c = this._furnitureCenter(id);
+      this.grabOffset = { x: c.x - colToX(this.col), z: c.z - rowToZ(this.row) };
+      this.furnitureGroups[id].rotation.y = (-newRot * Math.PI) / 2;
+      this.audio.playInteract();
+      return;
+    }
+    this.audio.playBump();
   }
 
   _isSlotOccupied(slot) {
@@ -784,9 +899,24 @@ export class InventoryScene {
   }
 
   _processMovementInput() {
+    // While carrying furniture the turn inputs get a real job again:
+    // rotating the carried piece a quarter-turn at a time.
+    if (this.grabbing) {
+      if (this.input.wasPressed('turnLeft')) this._tryRotate(-1);
+      else if (this.input.wasPressed('turnRight')) this._tryRotate(1);
+      const held = this.input.latestDown(
+        KEY_DIRS.slice(0, 4).map((k) => k.action)
+      );
+      if (held) {
+        const dir = KEY_DIRS.find((k) => k.action === held).dir;
+        this.facing = dir;
+        this._tryStep(dir);
+      }
+      return;
+    }
     // Absolute, screen-aligned steps: last direction pressed wins. The
-    // diorama never rotates, so the turn keys (and ←/→) step sideways
-    // instead of spinning the avatar in place.
+    // diorama never rotates, so with empty arms the turn keys (and ←/→)
+    // step sideways instead of spinning the avatar in place.
     const held = this.input.latestDown(KEY_DIRS.map((k) => k.action));
     if (held) {
       const dir = KEY_DIRS.find((k) => k.action === held).dir;
@@ -869,19 +999,28 @@ export class InventoryScene {
   _grabRelease() {
     const id = this.grabbing;
     this.grabbing = null;
+    document.body.classList.remove('carrying');
     this._placeFurniture(id);
     const at = this.gameState.furniture[id];
-    this.gameState.moveFurniture(id, at.col, at.row);
+    this.gameState.moveFurniture(id, at.col, at.row, at.rot);
     this.setToast(`Set the ${FURNITURE_DEFS[id].label} down.`, 2);
     this.audio.playDrop();
   }
 
   _grabStart(id) {
     this.grabbing = id;
+    document.body.classList.add('carrying');
     const g = this.furnitureGroups[id];
     this.grabOffset = { x: g.position.x - this.playerX, z: g.position.z - this.playerZ };
     this.setToast(`Picked the ${FURNITURE_DEFS[id].label} up. Walk it somewhere new.`, 2.5);
     this.audio.playPickup();
+  }
+
+  // How the rotate control reads in the carrying prompt: the visible ⟲ ⟳
+  // buttons on touch, the bound turn keys otherwise.
+  _rotateHintText() {
+    if (document.body.classList.contains('touch')) return '⟲ ⟳ to rotate it';
+    return `${this.input.keyLabel('turnLeft')} / ${this.input.keyLabel('turnRight')} to rotate it`;
   }
 
   _handleInteractions() {
@@ -889,18 +1028,24 @@ export class InventoryScene {
     this.promptHint = null;
     this.promptHintAction = null;
 
-    // While carrying furniture, setting it down is the only interaction.
+    // While carrying furniture, setting it down (or turning it) is the
+    // only interaction.
     if (this.grabbing) {
       this.prompt = `${this.input.promptFor('grab')} to set the ${FURNITURE_DEFS[this.grabbing].label} down`;
       this.promptAction = 'grab';
+      this.promptHint = this._rotateHintText();
+      this.promptHintAction = 'turnLeft';
       if (this.input.wasPressed('grab')) this._grabRelease();
       return;
     }
 
+    // Quick pickup applies to things lying on the floor; whatever rests
+    // in the bookshelf is taken from the bookshelf's own detailed view.
     const worldPos = new THREE.Vector3();
     let nearestItem = null;
     let nearestItemDist = PICKUP_RADIUS;
     for (const [id, mesh] of this.itemMeshes.entries()) {
+      if (this.gameState.itemLocations[id]?.scene !== 'inventory') continue;
       mesh.getWorldPosition(worldPos);
       const d = Math.hypot(worldPos.x - this.playerX, worldPos.z - this.playerZ);
       if (d < nearestItemDist) {
@@ -910,9 +1055,11 @@ export class InventoryScene {
     }
 
     const deskCenter = this._furnitureCenter('desk');
+    const shelfCenter = this._furnitureCenter('bookshelf');
     const spots = [
       ...this.staticInteractables,
-      { id: 'desk', kind: 'detail', x: deskCenter.x, z: deskCenter.z, radius: 1.5, label: 'Desk' },
+      { id: 'desk', kind: 'detail', x: deskCenter.x, z: deskCenter.z, radius: 1.6, label: 'Desk' },
+      { id: 'bookshelf', kind: 'detail', x: shelfCenter.x, z: shelfCenter.z, radius: 1.6, label: 'Bookshelf' },
       ...this.posterInteractables,
     ];
     let nearestSpot = null;
@@ -932,43 +1079,41 @@ export class InventoryScene {
       promptItem && POSTER_IDS.includes(promptItem) ? this._nearestFreeAnchor() : null;
     const slot = promptItem ? this._nearestEmptySlot() : null;
 
-    if (nearestItem) {
-      if (this.gameState.freeHand()) {
-        this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestItem]}`;
-        this.promptAction = 'interact';
-        if (this.input.wasPressed('interact')) {
-          const hand = this.gameState.pickUp(nearestItem);
-          this.setToast(`Picked up the ${ITEM_LABELS[nearestItem]} in your ${hand} hand.`, 2);
-          this.audio.playPickup();
-        }
-      } else {
-        this.prompt = `Your hands are full`;
-      }
+    // The prompt names the most pressing action; F ("use") is handled
+    // below regardless of which action the prompt happens to advertise.
+    if (nearestItem && this.gameState.freeHand()) {
+      this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestItem]}`;
+      this.promptAction = 'interact';
     } else if (anchor) {
       this.prompt = `${this.input.promptFor(promptDropAction)} to hang the ${ITEM_LABELS[promptItem]}`;
       this.promptAction = promptDropAction;
-      if (this.input.wasPressed('interact') && nearestSpot && nearestSpot.kind === 'detail') {
-        this.audio.playInteract();
-        this.onOpenDetail(nearestSpot.id);
-      }
-    } else if (nearestSpot) {
-      if (nearestSpot.kind === 'ladder') {
-        this.prompt = `${this.input.promptFor('interact')} to climb out`;
-        this.promptAction = 'interact';
-        if (this.input.wasPressed('interact')) this.onClimbOut();
-      } else {
-        this.prompt = `${this.input.promptFor('interact')} to look at the ${nearestSpot.label}`;
-        this.promptAction = 'interact';
-        if (this.input.wasPressed('interact')) {
-          this.audio.playInteract();
-          this.onOpenDetail(nearestSpot.id);
-        }
-      }
     } else if (slot) {
       this.prompt = `${this.input.promptFor(promptDropAction)} to place the ${ITEM_LABELS[promptItem]} on the shelf`;
       this.promptAction = promptDropAction;
+    } else if (nearestSpot) {
+      if (nearestSpot.kind === 'ladder') {
+        this.prompt = `${this.input.promptFor('interact')} to climb out`;
+      } else {
+        this.prompt = `${this.input.promptFor('interact')} to look at the ${nearestSpot.label}`;
+      }
+      this.promptAction = 'interact';
+    } else if (nearestItem) {
+      this.prompt = `Your hands are full`;
     } else {
       this.prompt = null;
+    }
+
+    if (this.input.wasPressed('interact')) {
+      if (nearestItem && this.gameState.freeHand()) {
+        const hand = this.gameState.pickUp(nearestItem);
+        this.setToast(`Picked up the ${ITEM_LABELS[nearestItem]} in your ${hand} hand.`, 2);
+        this.audio.playPickup();
+      } else if (nearestSpot && nearestSpot.kind === 'ladder') {
+        this.onClimbOut();
+      } else if (nearestSpot) {
+        this.audio.playInteract();
+        this.onOpenDetail(nearestSpot.id);
+      }
     }
 
     // Standing beside furniture, the grab hint rides under whatever the

@@ -233,9 +233,28 @@ test('validation.md contract', async ({ page }) => {
     expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(false);
   });
 
-  await test.step('V4: Controls poster rebinds keys live', async () => {
+  await test.step('V4: Controls poster rebinds keys live on an opaque panel', async () => {
     await navigate(page, [[4, 0]]);
     await openDetail(page);
+    // Live DOM content needs an opaque surface: the rendered poster under
+    // the panel must not bleed its painted words through the binding list.
+    await expect(page.locator('#modal-box')).toHaveClass(/interactive/);
+    const bg = await page
+      .locator('#modal-box')
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+    // The take-down action flows below the last binding row rather than
+    // floating over mid-list rows in the fixed-size poster panel.
+    await page.evaluate(() => {
+      const c = document.getElementById('modal-content');
+      c.scrollTop = c.scrollHeight;
+    });
+    const lastRow = page.locator('.keybind-row').last();
+    const footerBtn = page.locator('button[data-take-down="poster-controls"]');
+    await expect(footerBtn).toBeVisible();
+    const lastBox = await lastRow.boundingBox();
+    const footBox = await footerBtn.boundingBox();
+    expect(footBox.y).toBeGreaterThanOrEqual(lastBox.y + lastBox.height - 1);
     const row = page.locator('.keybind-row', { hasText: 'Left Hand: Drop / Place' });
     await expect(row.locator('button.rebind')).toHaveText('Z');
     await row.locator('button.rebind').click();
@@ -251,6 +270,7 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V5: Settings poster: volumes, mute, left-handed layout', async () => {
     await navigate(page, [[6, 0]]);
     await openDetail(page);
+    await expect(page.locator('#modal-box')).toHaveClass(/interactive/);
     const musicRow = page.locator('.keybind-row', { hasText: 'Music Volume' });
     await expect(musicRow.locator('input[type=range]')).toBeVisible();
     await expect(
@@ -274,6 +294,7 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V6: bulletin board shows the starting objective', async () => {
     await navigate(page, [[10, 0]]);
     await openDetail(page);
+    await expect(page.locator('#modal-box')).toHaveClass(/interactive/);
     await expect(page.locator('#modal-content')).toContainText('Find your way to the end of the maze');
     await closeDetail(page);
   });
@@ -283,6 +304,7 @@ test('validation.md contract', async ({ page }) => {
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('Desk');
     await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Current maze layer');
+    await expect(page.locator('#modal-content')).toContainText('Steps walked');
     await expect(page.locator('#modal-box')).toHaveClass(/panel-paper/);
     await closeDetail(page);
   });
@@ -313,15 +335,18 @@ test('validation.md contract', async ({ page }) => {
       .toEqual({ scene: 'inventory-wall', anchor: 0 });
   });
 
-  await test.step('V9: compass and map pick up into right then left hand', async () => {
-    await navigate(page, [[1, 4]]);
-    await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('pick up the Compass');
-    await page.keyboard.press('f');
+  await test.step('V9: the bookshelf has a detailed view; items are taken from it', async () => {
+    await navigate(page, [[1, 5]]);
+    await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('look at the Bookshelf');
+    await openDetail(page);
+    expect(await page.evaluate(() => window.__box.detailView.currentId)).toBe('bookshelf');
+    // The real 3D shelves stay visible: a translucent listing, no card.
+    await expect(page.locator('#modal-box')).toHaveClass(/panel-shelf/);
+    await page.locator('button[data-take="compass"]').click();
     await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.right)).toBe('compass');
-    await navigate(page, [[1, 6]]);
-    await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('pick up the Map');
-    await page.keyboard.press('f');
+    await page.locator('button[data-take="map"]').click();
     await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.left)).toBe('map');
+    await closeDetail(page);
     await expect(page.locator('#hand-right')).toHaveAttribute('data-item', 'compass');
     await expect(page.locator('#hand-left')).toHaveAttribute('data-item', 'map');
   });
@@ -347,10 +372,14 @@ test('validation.md contract', async ({ page }) => {
       window.__box.gameState.objectives.find((o) => o.id === 'tidy-shelf')
     );
     expect(tidy.done).toBe(true);
-    // pick both back up for the maze half of the run
-    await page.keyboard.press('f'); // map (at this slot) -> right hand
-    await navigate(page, [[1, 4]]);
-    await page.keyboard.press('f'); // compass -> left hand
+    // take both back from the bookshelf's view for the maze half of the run
+    await navigate(page, [[1, 5]]);
+    await openDetail(page);
+    await page.locator('button[data-take="map"]').click(); // -> right hand
+    await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.right)).toBe('map');
+    await page.locator('button[data-take="compass"]').click(); // -> left hand
+    await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.left)).toBe('compass');
+    await closeDetail(page);
     expect(await page.evaluate(() => window.__box.gameState.hands)).toEqual({
       right: 'map',
       left: 'compass',
@@ -567,8 +596,8 @@ test('validation.md contract', async ({ page }) => {
     expect(save.itemLocations.compass).toEqual({ scene: 'inventory-shelf', slot: 0 });
     expect(save.itemLocations['poster-howto']).toEqual({ scene: 'inventory-wall', anchor: 0 });
     expect(save.furniture).toEqual({
-      bookshelf: { col: 0, row: 4 },
-      desk: { col: 8, row: 7 },
+      bookshelf: { col: 0, row: 4, rot: 0 },
+      desk: { col: 8, row: 7, rot: 0 },
     });
     expect(errors).toEqual([]);
   });
@@ -657,7 +686,7 @@ test('validation.md contract', async ({ page }) => {
     await expect(page.locator('#box-entry')).toBeHidden();
   });
 
-  await test.step('V22: the bookshelf can be carried to a new spot and set down', async () => {
+  await test.step('V22: furniture carries, rotates while carried, and sets down', async () => {
     await navigate(page, [[1, 8], [1, 5]]);
     await expect
       .poll(
@@ -671,6 +700,7 @@ test('validation.md contract', async ({ page }) => {
     expect(await page.evaluate(() => window.__box.gameState.furniture.bookshelf)).toEqual({
       col: 0,
       row: 4,
+      rot: 0,
     });
 
     // Grab it, carry it one tile east, set it down.
@@ -684,6 +714,7 @@ test('validation.md contract', async ({ page }) => {
     expect(await page.evaluate(() => window.__box.gameState.furniture.bookshelf)).toEqual({
       col: 1,
       row: 4,
+      rot: 0,
     });
     // Everything in its slots rode along, still recorded by slot index,
     // and the new position is in the save.
@@ -692,21 +723,34 @@ test('validation.md contract', async ({ page }) => {
       slot: 0,
     });
     const save = await page.evaluate(() => JSON.parse(localStorage.getItem('box-and-bones:save')));
-    expect(save.furniture.bookshelf).toEqual({ col: 1, row: 4 });
+    expect(save.furniture.bookshelf).toEqual({ col: 1, row: 4, rot: 0 });
 
-    // Carry it back west; once it stands against the wall a further step
-    // is refused with a bump.
+    // While carrying, the ⟲ ⟳ buttons return and the turn keys rotate
+    // the piece a quarter-turn (pivot nudging aside if it would land on
+    // you); footprint and orientation both change, and rotate back.
     await page.keyboard.press('g');
     await expect
       .poll(() => page.evaluate(() => window.__box.inventoryScene.grabbing))
       .toBe('bookshelf');
+    await expect(page.locator('[data-action="turnLeft"]')).toBeVisible();
+    await page.keyboard.press('e');
+    await expect
+      .poll(() => page.evaluate(() => window.__box.gameState.furniture.bookshelf.rot))
+      .toBe(1);
+    await page.keyboard.press('q');
+    await expect
+      .poll(() => page.evaluate(() => window.__box.gameState.furniture.bookshelf.rot))
+      .toBe(0);
+
+    // Carry it back west; once it stands against the wall a further step
+    // is refused with a bump.
     expect(await boxStep(page, 'a')).toBe(true);
     expect(await boxStep(page, 'a', 800)).toBe(false);
     await page.keyboard.press('g');
     await expect.poll(() => page.evaluate(() => window.__box.inventoryScene.grabbing)).toBe(null);
-    expect(await page.evaluate(() => window.__box.gameState.furniture.bookshelf)).toEqual({
-      col: 0,
-      row: 4,
-    });
+    await expect(page.locator('[data-action="turnLeft"]')).toBeHidden();
+    const rest = await page.evaluate(() => window.__box.gameState.furniture.bookshelf);
+    expect(rest.col).toBe(0);
+    expect(rest.rot).toBe(0);
   });
 });

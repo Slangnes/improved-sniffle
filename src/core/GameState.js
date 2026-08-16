@@ -32,11 +32,12 @@ const DEFAULT_ITEM_HOMES = {
 };
 
 // Movable furniture, stored as the grid anchor (min col/row) of each
-// piece's footprint on the box floor. InventoryScene owns the footprint
-// sizes and meshes; this is only where they stand.
+// piece's footprint on the box floor plus its orientation (quarter-turns
+// clockwise). InventoryScene owns the footprint sizes and meshes; this is
+// only where they stand and which way they face.
 const DEFAULT_FURNITURE = {
-  bookshelf: { col: 0, row: 4 },
-  desk: { col: 8, row: 7 },
+  bookshelf: { col: 0, row: 4, rot: 0 },
+  desk: { col: 8, row: 7, rot: 0 },
 };
 
 // Older saves stored shelved items at the old wall-board coordinates;
@@ -69,6 +70,8 @@ export class GameState {
       ...JSON.parse(JSON.stringify(DEFAULT_FURNITURE)),
       ...(saved?.furniture ?? {}),
     };
+    // Saves from before furniture could rotate carry no orientation.
+    for (const f of Object.values(this.furniture)) f.rot = f.rot ?? 0;
 
     // Migrate pre-bookshelf saves: shelved items used to be stored at the
     // old wall boards' world coordinates.
@@ -260,8 +263,8 @@ export class GameState {
     this._notify();
   }
 
-  moveFurniture(id, col, row) {
-    this.furniture[id] = { col, row };
+  moveFurniture(id, col, row, rot = 0) {
+    this.furniture[id] = { col, row, rot };
     this._notify();
   }
 

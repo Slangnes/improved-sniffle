@@ -277,6 +277,7 @@ export class MazeScene {
     this.isAnimating = true;
     this.cellX += dCellX;
     this.cellY += dCellY;
+    this.gameState.stepsTaken += 1;
     this.audio.footstep('stone');
   }
 
