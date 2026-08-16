@@ -31,12 +31,14 @@ wall from their detailed view, carried rolled up, dropped anywhere — even
 in the maze — and hung back on any empty hook.
 
 Movement is one square at a time everywhere, like a classic dungeon
-crawler (Wizardry, Eye of the Beholder). In the box the overhead camera is
-grid-aligned, so **what you press is where you go on screen**: W walks up,
-S down, A left, D right, and the little hooded explorer turns to face its
-steps; the ladder is the only way out. In the maze it's first-person: W/S
-step, A/D strafe, Q/E turn. Held keys chain steps smoothly, the newest
-pressed direction wins, and the arrow keys always work (↑↓ step, ←→ turn).
+crawler (Wizardry, Eye of the Beholder). The box is a fixed isometric
+diorama — the camera frames the whole room and never moves while you walk.
+**What you press is where you go**: W walks up the screen, S down, A left,
+D right, and the little hooded explorer turns to face its steps; the
+ladder is the only way out, and climbing back in lands you at its foot.
+In the maze it's first-person: W/S step, A/D strafe, Q/E turn. Held keys
+chain steps smoothly, the newest pressed direction wins, and the arrow
+keys always work (↑↓ step, ←→ turn).
 
 You have a **left hand and a right hand**. Each holds one item; what your
 left hand carries sits at the bottom-left of the screen (and in the maze,

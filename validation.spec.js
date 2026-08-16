@@ -167,7 +167,6 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V1: boots into the title poster, info on the poster itself', async () => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await expect(page.locator('#modal-layer')).toBeVisible();
-    await expect(page.locator('#modal-content')).toContainText('Box & Bones');
     await expect(page.locator('#detail-begin')).toBeVisible();
     // No modal card: the panel is sized to the poster (world panel, dark ink).
     await expect(page.locator('#modal-box')).toHaveClass(/panel-world/);
@@ -184,11 +183,13 @@ test('validation.md contract', async ({ page }) => {
     const cam = await page.evaluate(() => ({
       ortho: window.__box.inventoryScene.camera.isOrthographicCamera,
       zoom: window.__box.inventoryScene.camera.zoom,
+      roomZoom: window.__box.inventoryScene.roomZoom,
       ctxState: window.__box.audio.ctx?.state,
       track: window.__box.audio._currentTrack,
     }));
     expect(cam.ortho).toBe(true);
-    expect(Math.abs(cam.zoom - 1)).toBeLessThan(0.05);
+    // Fixed diorama framing: the camera rests at the whole-room zoom.
+    expect(Math.abs(cam.zoom - cam.roomZoom)).toBeLessThan(0.05);
     expect(cam.ctxState).toBe('running');
     expect(cam.track).toBe('box');
     await expect(page.locator('.tc-box')).toBeHidden();
@@ -210,8 +211,10 @@ test('validation.md contract', async ({ page }) => {
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('How To Play poster');
     await openDetail(page);
     await expect(page.locator('#modal-box')).toHaveClass(/panel-world/);
-    await expect(page.locator('#modal-content')).toContainText('How To Play');
-    await expect(page.locator('#modal-content')).toContainText('two hands');
+    // The poster's words are painted on the poster texture itself; the DOM
+    // contributes only the take-down action.
+    expect(await page.evaluate(() => window.__box.detailView.currentId)).toBe('poster-howto');
+    await expect(page.locator('button[data-take-down="poster-howto"]')).toBeVisible();
     await closeDetail(page);
     expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(false);
   });
@@ -219,7 +222,6 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V4: Controls poster rebinds keys live', async () => {
     await navigate(page, [[3, 0]]);
     await openDetail(page);
-    await expect(page.locator('#modal-content')).toContainText('Controls');
     const row = page.locator('.keybind-row', { hasText: 'Left Hand: Drop / Place' });
     await expect(row.locator('button.rebind')).toHaveText('Z');
     await row.locator('button.rebind').click();
@@ -235,7 +237,6 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V5: Settings poster: volumes, mute, left-handed layout', async () => {
     await navigate(page, [[4, 0]]);
     await openDetail(page);
-    await expect(page.locator('#modal-content')).toContainText('Settings');
     const musicRow = page.locator('.keybind-row', { hasText: 'Music Volume' });
     await expect(musicRow.locator('input[type=range]')).toBeVisible();
     await expect(
@@ -259,7 +260,6 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V6: bulletin board shows the starting objective', async () => {
     await navigate(page, [[7, 0]]);
     await openDetail(page);
-    await expect(page.locator('#modal-content')).toContainText('Bulletin Board');
     await expect(page.locator('#modal-content')).toContainText('Find your way to the end of the maze');
     await closeDetail(page);
   });

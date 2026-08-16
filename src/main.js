@@ -71,6 +71,7 @@ async function toggleBox() {
     current = goingToMaze ? mazeScene : inventoryScene;
     gameState.setScene(goingToMaze ? 'maze' : 'inventory');
     document.body.classList.toggle('in-box', !goingToMaze);
+    if (!goingToMaze) inventoryScene.enterAtLadder();
     current.onResize();
     audio.startMusic(goingToMaze ? 'maze' : 'box');
   });

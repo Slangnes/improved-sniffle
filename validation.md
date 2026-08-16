@@ -27,15 +27,17 @@ Console errors are collected for the whole run; V20 fails if any occurred.
 ## Movement language (both scenes)
 
 One square at a time, everywhere — and controls always go the way you
-expect. The box camera sits due south of the player, so **screen axes line
-up exactly with the grid**: in the box, W walks up the screen (north),
-S down, A left, D right — absolute directions, with the avatar turning to
-face its steps. The maze is first-person: W/S step along your view, A/D
-**strafe**, Q/E **turn** 90°. The **arrow keys always work** on top of any
-bindings (↑↓ step, ←→ turn). Held keys chain steps with no dead frame
-between them, the most recently pressed direction wins, and steps have a
-subtle bob. Tiles blocked by furniture (or maze walls) refuse the step
-with a bump.
+expect. The box is presented as a **fixed isometric diorama**: an
+orthographic camera frames the whole room from a gentle 30° angle (two
+walls visible, floating in the dark) and **never moves while you walk** —
+only the little avatar does. Box movement is absolute: W walks up the
+screen (north), S down, A left, D right, and the avatar turns to face its
+steps. The maze is first-person: W/S step along your view, A/D **strafe**,
+Q/E **turn** 90°. The **arrow keys always work** on top of any bindings
+(↑↓ step, ←→ turn). Held keys chain steps with no dead frame between
+them, the most recently pressed direction wins, and steps have a subtle
+bob. Tiles blocked by furniture (or maze walls) refuse the step with a
+bump. Climbing into the box always lands you at the foot of the ladder.
 
 ## Hands
 
@@ -53,11 +55,11 @@ between sides (the hand buttons stay on their hands' sides).
   separate menu: on load the camera is zoomed onto the "Box & Bones"
   poster in the box with a BEGIN button, rendered on the poster itself
   (dark panel, no modal card). It cannot be dismissed without BEGIN.
-- **V2 — BEGIN zooms out into the overhead box view.** The camera pulls
-  back from the poster into the grid-aligned orthographic view. Audio
-  starts. Inside the box there is **no BOX button and no shortcut out** —
-  the ladder is the only exit. Pressing W steps exactly one tile up the
-  screen (north), and the ArrowDown alias steps back.
+- **V2 — BEGIN zooms out into the diorama.** The camera pulls back from
+  the poster and settles at the fixed whole-room framing. Audio starts.
+  Inside the box there is **no BOX button and no shortcut out** — the
+  ladder is the only exit. Pressing W steps exactly one tile up the screen
+  (north), and the ArrowDown alias steps back.
 
 ## The box: info lives on the posters
 
@@ -66,7 +68,9 @@ the camera onto the object; its readable content appears **on the object's
 own surface** (the panel is sized to the zoomed poster/board/paper — no
 floating modal card). Closing flies the camera back out.
 
-- **V3 — How To Play poster** explains the game, on the poster.
+- **V3 — How To Play poster** explains the game, with the words painted
+  onto the poster's own texture (the DOM contributes only the take-down
+  action); a vignette spotlights the focused object.
 - **V4 — Controls poster** lists every action with its key; clicking a
   binding then pressing a new key rebinds it live (persisted).
 - **V5 — Settings poster** has Music/SFX volume sliders, a Mute checkbox,

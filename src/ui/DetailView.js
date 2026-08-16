@@ -122,6 +122,7 @@ export class DetailView {
 
   _beginClose() {
     this.layer.classList.add('hidden');
+    this.layer.classList.remove('world-open');
     this.viewport.classList.remove('inspect');
     this.audio.playModalClose();
     if (!this.usesCamera) {
@@ -199,6 +200,7 @@ export class DetailView {
     };
     (builders[this.currentId] || (() => this._fallback()))();
     if (POSTER_IDS.includes(this.currentId)) this._posterFooter(this.currentId);
+    this.layer.classList.toggle('world-open', !!this.currentPose);
     this.layer.classList.remove('hidden');
   }
 
@@ -207,12 +209,10 @@ export class DetailView {
   }
 
   _title() {
+    // The poster's art and words are painted on the poster itself; the DOM
+    // only contributes the BEGIN button.
     const wrap = document.createElement('div');
-    wrap.innerHTML = `
-      <h2>Box &amp; Bones</h2>
-      <p><em>An old-school maze crawler.</em></p>
-      <p>You keep a small wooden box, and inside it, a whole room. Beyond the
-      box: a maze that grows every time you beat it.</p>`;
+    wrap.className = 'panel-actions';
     if (!this.started) {
       const begin = document.createElement('button');
       begin.id = 'detail-begin';
@@ -234,41 +234,26 @@ export class DetailView {
   }
 
   _howto() {
+    // On the wall, the poster's words are painted on the poster itself —
+    // the DOM adds nothing but the take-down footer. Reading a carried,
+    // rolled-up copy shows the text in hand instead.
+    if (this.currentPose) return;
     this.content.innerHTML = `
       <h2>How To Play</h2>
-      <p>You keep a small wooden box. Climb into it and it becomes a place of its
-      own &mdash; shelves, a desk, a corkboard of jobs to do. Climb the ladder to
-      shrink back out into the real world, where a maze waits.</p>
-      <p>Each maze is a ring. Find its far edge and the maze itself grows
-      outward, wrapping a new, bigger ring around the one you just cleared.
-      Clear three rings and the whole thing folds back to the start &mdash;
-      a fresh maze, ready to run again.</p>
-      <p>You move one square at a time, everywhere. In the box, what you
-      press is where you go on screen: W walks up, S down, A left, D right.
-      In the maze it's first-person: W/S step forward and back, A/D
-      sidestep, Q/E turn you in place. The arrow keys always work too
-      (&#8593;&#8595; step, &#8592;&#8594; turn). The ladder is the only way
-      out of the box.</p>
-      <p>You have two hands, and each can hold one thing. What your left
-      hand holds sits at the left of the screen, your right at the right.
-      F picks things up into a free hand; Z sets down (or shelves, or
-      hangs) what's in your left hand, C your right. Tap a held item to
-      look at it closely.</p>
-      <p>Pick up the Compass and Map from the shelves and use them to find
-      your way. Posters come off the walls too &mdash; carry them rolled up
-      and hang them back on any empty hook.</p>
+      <p>The ladder leads out into the maze. Find the maze's far edge and it
+      grows a new ring around itself. Three rings deep, the run is done, and
+      a fresh maze awaits.</p>
+      <p>You have two hands, and each can hold one thing — shown at its own
+      side of the screen. Tap a held thing to look at it closely.</p>
       <ul>
-        <li>W / S &mdash; step forward / back</li>
-        <li>A / D &mdash; sidestep left / right</li>
-        <li>Q / E &mdash; turn left / right</li>
-        <li>F &mdash; use what's in front of you</li>
+        <li>W A S D &mdash; step around</li>
+        <li>Q / E &mdash; turn (in the maze)</li>
+        <li>F &mdash; use what is near</li>
         <li>Z / C &mdash; left / right hand: drop, shelve, or hang</li>
         <li>I &mdash; look into your box (from the maze)</li>
-        <li>1 / 2 &mdash; toggle the compass / map overlays</li>
-        <li>M &mdash; mute all audio</li>
-      </ul>
-      <p>On a touch screen: the pad steps and sidesteps, ⟲⟳ turn, USE
-      interacts, and each hand has its own DROP button on its own side.</p>`;
+        <li>1 / 2 &mdash; compass &amp; map overlays</li>
+        <li>M &mdash; mute; arrow keys always work</li>
+      </ul>`;
   }
 
   _controls() {
@@ -433,28 +418,30 @@ export class DetailView {
 
   _posterFooter(id) {
     const loc = this.gameState.itemLocations[id];
+    const footer = document.createElement('div');
+    if (this.currentPose) footer.className = 'panel-actions';
     if (loc?.scene === 'inventory-wall') {
       if (this.gameState.freeHand()) {
         const btn = document.createElement('button');
         btn.className = 'rebind';
         btn.dataset.takeDown = id;
         btn.textContent = 'Take it off the wall';
-        btn.style.cssText = 'display:block;margin:16px auto 0;';
         btn.addEventListener('click', () => {
           this.gameState.takeIntoHand(id);
           this.audio.playPickup();
           this._beginClose();
         });
-        this.content.appendChild(btn);
+        footer.appendChild(btn);
       } else {
         const p = document.createElement('p');
         p.innerHTML = `<em>You would take it down, but your hands are full.</em>`;
-        this.content.appendChild(p);
+        footer.appendChild(p);
       }
     } else {
       const p = document.createElement('p');
       p.innerHTML = `<em>Unrolled in your hands. It can hang on any empty hook.</em>`;
-      this.content.appendChild(p);
+      footer.appendChild(p);
     }
+    this.content.appendChild(footer);
   }
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { makeLabelTexture } from '../ui/canvasLabel.js';
+import { makeLabelTexture, makePosterTexture } from '../ui/canvasLabel.js';
 import { POSTER_IDS, ITEM_LABELS } from '../core/GameState.js';
 import { buildItemMesh } from '../items/itemMeshes.js';
 import { buildAvatar } from './avatar.js';
@@ -19,11 +19,16 @@ const PICKUP_RADIUS = 2.0;
 const SLOT_RADIUS = 2.0;
 const ANCHOR_RADIUS = 1.5;
 
-// Overhead camera due SOUTH of the player, looking north and down, with an
-// orthographic projection. Screen axes line up exactly with the grid: up on
-// screen is north on the grid, right is east — so what you press is where
-// you go. The south wall is a low rim the camera sees over.
-const CAM_OFFSET = new THREE.Vector3(0, 10.5, 8);
+// The box is presented as a fixed diorama: an orthographic camera framing
+// the WHOLE room, angled with a gentle 30° yaw so two walls show and the
+// scene keeps its isometric character — but never so diagonal that the
+// grid's north stops reading as "up" on screen. The camera does not follow
+// the player; only the little avatar moves.
+const CAM_YAW = Math.PI / 6;
+const CAM_DIST = 10;
+const CAM_HEIGHT = 11;
+const CAM_DIR = new THREE.Vector3(Math.sin(CAM_YAW), 0, Math.cos(CAM_YAW));
+const ROOM_CENTER = new THREE.Vector3(0, 0.6, 0);
 const FRUSTUM_HEIGHT = 9.5;
 
 // World-grid facings: N, E, S, W. Movement keys map to these absolutely
@@ -48,10 +53,47 @@ const WALL_ANCHORS = [
   { x: 1.1, z: -4.28 },
 ];
 
+// Full poster faces: the information is genuinely painted on the paper.
 const POSTER_ART = {
-  'poster-howto': { title: 'How To Play', subtitle: 'Read me first.' },
-  'poster-controls': { title: 'Controls', subtitle: 'Keys can be changed.' },
-  'poster-settings': { title: 'Settings', subtitle: 'Music, sound, and mute.' },
+  'poster-howto': {
+    banner: 'How To Play',
+    bannerColor: '#6b4a2b',
+    sections: [
+      {
+        type: 'p',
+        text: "The ladder leads out into the maze. Find the maze's far edge and it grows a new ring around itself. Three rings deep, the run is done, and a fresh maze awaits.",
+      },
+      {
+        type: 'p',
+        text: 'You have two hands. Each carries one thing, shown at its own side of the screen. Tap a held thing to look at it closely.',
+      },
+      { type: 'gap' },
+      { type: 'k', key: 'W A S D', text: 'step around' },
+      { type: 'k', key: 'Q  E', text: 'turn (in the maze)' },
+      { type: 'k', key: 'F', text: 'use what is near' },
+      { type: 'k', key: 'Z  C', text: 'left / right hand' },
+      { type: 'k', key: '1  2', text: 'compass & map' },
+      { type: 'k', key: 'M', text: 'mute' },
+      { type: 'k', key: 'ARROWS', text: 'always work' },
+    ],
+  },
+  'poster-controls': {
+    banner: 'Controls',
+    bannerColor: '#3f5d7a',
+    sections: [
+      {
+        type: 'p',
+        text: 'Every key can be re-taught. Step close: tap a binding, then press the key you prefer.',
+      },
+    ],
+  },
+  'poster-settings': {
+    banner: 'Settings',
+    bannerColor: '#556b2f',
+    sections: [
+      { type: 'p', text: 'Sound, music, and the way you hold the box.' },
+    ],
+  },
 };
 
 const colToX = (c) => -5.25 + c * CELL;
@@ -120,7 +162,8 @@ export class InventoryScene {
       this._syncHeldItems();
     });
 
-    this._placeCamera(true);
+    this._fitRoom();
+    this._placeCamera();
   }
 
   _buildRoom() {
@@ -188,7 +231,14 @@ export class InventoryScene {
     frame.position.set(x, 1.9, z + 0.04);
     this.scene.add(frame);
 
-    const tex = makeLabelTexture({ title: 'Objectives', subtitle: 'Pinned notes', bg: '#c9b98a' });
+    const tex = makePosterTexture({
+      banner: 'Objectives',
+      bannerColor: '#8a2a1e',
+      bg: '#c9b98a',
+      sections: [{ type: 'p', text: 'Pinned jobs, in charcoal. Step close to read them.' }],
+      width: 512,
+      height: 585,
+    });
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1.4, 1.6),
       new THREE.MeshBasicMaterial({ map: tex })
@@ -208,7 +258,21 @@ export class InventoryScene {
   }
 
   _addTitlePoster(x, z) {
-    const tex = makeLabelTexture({ title: 'Box & Bones', subtitle: 'An old-school maze crawler', bg: '#20180f', border: '#e8c96a', ink: '#e8c96a' });
+    const tex = makePosterTexture({
+      bg: '#20180f',
+      ink: '#e8c96a',
+      border: '#e8c96a',
+      sections: [
+        { type: 'gap' },
+        { type: 'big', text: 'Box & Bones' },
+        { type: 'p', text: 'an old-school maze crawler.' },
+        { type: 'gap' },
+        {
+          type: 'p',
+          text: 'Somewhere past the cardboard rim, a maze is waiting. Press BEGIN when you are ready to be small.',
+        },
+      ],
+    });
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1.3, 1.7),
       new THREE.MeshBasicMaterial({ map: tex })
@@ -351,7 +415,11 @@ export class InventoryScene {
       if (loc?.scene !== 'inventory-wall') continue;
       const anchor = WALL_ANCHORS[loc.anchor];
       const art = POSTER_ART[id];
-      const tex = makeLabelTexture({ title: art.title, subtitle: art.subtitle });
+      const tex = makePosterTexture({
+        banner: art.banner,
+        bannerColor: art.bannerColor,
+        sections: art.sections,
+      });
       const mesh = new THREE.Mesh(
         new THREE.PlaneGeometry(1.3, 1.7),
         new THREE.MeshBasicMaterial({ map: tex })
@@ -385,39 +453,89 @@ export class InventoryScene {
     return { ...pose, zoom: FRUSTUM_HEIGHT / pose.viewHeight };
   }
 
+  _roomCamPos() {
+    return ROOM_CENTER.clone().add(
+      new THREE.Vector3(CAM_DIR.x * CAM_DIST, CAM_HEIGHT, CAM_DIR.z * CAM_DIST)
+    );
+  }
+
+  // The resting pose: whole room in frame, camera still.
   getFollowPose() {
     return {
-      camPos: new THREE.Vector3(this.playerX, 0, this.playerZ).add(CAM_OFFSET),
-      look: new THREE.Vector3(this.playerX, 0.6, this.playerZ),
-      zoom: 1,
+      camPos: this._roomCamPos(),
+      look: ROOM_CENTER.clone(),
+      zoom: this.roomZoom,
     };
   }
 
-  _placeCamera(snap = false) {
-    const target = this.getFollowPose();
-    if (snap) {
-      this.camera.position.copy(target.camPos);
-    } else {
-      this.camera.position.lerp(target.camPos, 0.12);
+  // Compute the zoom that fits the whole room (with walls) in the frame,
+  // whatever the window's aspect ratio.
+  _fitRoom() {
+    this.camera.zoom = 1;
+    this.camera.position.copy(this._roomCamPos());
+    this.camera.lookAt(ROOM_CENTER);
+    this.camera.updateMatrixWorld(true);
+    const inv = this.camera.matrixWorldInverse;
+    let maxX = 0;
+    let maxY = 0;
+    for (const cx of [-6.4, 6.4]) {
+      for (const cy of [0, 3.4]) {
+        for (const cz of [-4.9, 4.9]) {
+          const v = new THREE.Vector3(cx, cy, cz).applyMatrix4(inv);
+          maxX = Math.max(maxX, Math.abs(v.x));
+          maxY = Math.max(maxY, Math.abs(v.y));
+        }
+      }
     }
-    this.camera.zoom = this.transitionZoom;
+    const aspect = window.innerWidth / window.innerHeight;
+    const halfW = (FRUSTUM_HEIGHT * aspect) / 2;
+    const halfH = FRUSTUM_HEIGHT / 2;
+    this.roomZoom = Math.min(halfW / maxX, halfH / maxY) * 0.96;
+  }
+
+  _placeCamera() {
+    const pose = this.getFollowPose();
+    this.camera.position.copy(pose.camPos);
+    this.camera.zoom = pose.zoom * this.transitionZoom;
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(target.look);
+    this.camera.lookAt(pose.look);
+  }
+
+  // Transitions dive toward / pull away from the player (who stands at the
+  // ladder when climbing either way).
+  _applyTransitionPose(t) {
+    const playerLook = new THREE.Vector3(this.playerX, 0.6, this.playerZ);
+    const playerCam = playerLook
+      .clone()
+      .add(new THREE.Vector3(CAM_DIR.x * CAM_DIST, CAM_HEIGHT, CAM_DIR.z * CAM_DIST));
+    const room = this.getFollowPose();
+    this.camera.position.lerpVectors(room.camPos, playerCam, t);
+    this.camera.zoom = this.roomZoom * (1 + 2.6 * t);
+    this.camera.updateProjectionMatrix();
+    this.camera.lookAt(new THREE.Vector3().lerpVectors(room.look, playerLook, t));
   }
 
   transitionOut(t) {
-    this.transitionZoom = 1 + 2.6 * t;
-    this._placeCamera(true);
+    this._applyTransitionPose(t);
   }
 
   transitionIn(t) {
-    this.transitionZoom = 1 + 2.6 * (1 - t);
-    this._placeCamera(true);
+    this._applyTransitionPose(1 - t);
   }
 
   transitionReset() {
     this.transitionZoom = 1;
-    this._placeCamera(true);
+    this._placeCamera();
+  }
+
+  // Climbing into the box always lands you at the foot of the ladder.
+  enterAtLadder() {
+    this.col = 3;
+    this.row = 5;
+    this.facing = 0;
+    this.playerX = colToX(this.col);
+    this.playerZ = rowToZ(this.row);
+    this.isAnimating = false;
   }
 
   setToast(message, seconds) {
@@ -651,5 +769,7 @@ export class InventoryScene {
     this.camera.top = FRUSTUM_HEIGHT / 2;
     this.camera.bottom = -FRUSTUM_HEIGHT / 2;
     this.camera.updateProjectionMatrix();
+    this._fitRoom();
+    if (!this.cameraOverride) this._placeCamera();
   }
 }
