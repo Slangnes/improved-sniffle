@@ -3,15 +3,16 @@
 // consumer works identically to a physical keyboard, and rebinding keys
 // re-routes the touch buttons too.
 //
-// One thumb per cluster: the left side of the screen carries the movement
-// pad, the right side the paired hand-drop buttons (L·DROP left, R·DROP
-// right, mirroring the hands). The pad is a single crawler rose — turn
-// buttons sit in the top corners, each between the forward key and its
-// strafe key (⟲ between ▲ and ◀, ⟳ between ▲ and ▶) — and drives every
-// scene the same way. Context actions have no buttons here: tapping the
-// prompt line performs what it names, and tapping the cardboard box at
-// the bottom of the maze view looks into it. The left-handed setting
-// swaps the two clusters between the sides.
+// All the buttons live in one delineated control tray along the bottom
+// of the screen: the movement pad on the left, the paired hand-drop
+// buttons on the right (L·DROP left, R·DROP right, mirroring the hands),
+// and — in the maze — the cardboard box in the middle. The view area
+// above the tray belongs to the world: the held items float there at the
+// left and right edges, with the tappable prompt line above them. The
+// pad is a single crawler rose — turn buttons sit in the top corners,
+// each between the forward key and its strafe key (⟲ between ▲ and ◀,
+// ⟳ between ▲ and ▶) — and drives every scene the same way. The
+// left-handed setting swaps the two clusters between the tray's sides.
 
 export class TouchControls {
   constructor({ input }) {
@@ -24,6 +25,7 @@ export class TouchControls {
     this.root = document.createElement('div');
     this.root.id = 'touch-controls';
     this.root.innerHTML = `
+      <div id="tc-tray"></div>
       <div id="tc-left" class="tc-side">
         <div id="tc-move">
           <div id="tc-dpad">

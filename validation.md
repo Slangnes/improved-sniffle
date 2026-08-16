@@ -48,13 +48,17 @@ there in the hand: the map slot shows the live inked minimap, the compass
 slot its live needle. Tapping a held item slides it out of the hand into
 the center of the screen for a closer look (and back when dismissed).
 Z drops, shelves, or hangs the left hand's item; C the right hand's.
-On touch, the two hand DROP buttons sit side by side (L·DROP left,
-R·DROP right, mirroring the hands); context actions have no buttons —
-the prompt line itself is tappable and performs the action it names.
-The movement pad is a single crawler rose with the turn buttons in its
-top corners (⟲ between ▲ and ◀, ⟳ between ▲ and ▶), identical in both
-scenes; a left-handed setting swaps the movement pad and the drop pair
-between sides.
+On touch, all the buttons live in a delineated control tray along the
+bottom of the screen: the movement pad on one side, the two hand DROP
+buttons side by side (L·DROP left, R·DROP right, mirroring the hands)
+on the other, and — in the maze — the cardboard box in the middle. The
+view area above the tray belongs to the world: the held items float
+there at the screen's left and right edges, with the prompt line above
+them; context actions have no buttons — the prompt line itself is
+tappable and performs the action it names. The movement pad is a single
+crawler rose with the turn buttons in its top corners (⟲ between ▲ and
+◀, ⟳ between ▲ and ▶), identical in both scenes; a left-handed setting
+swaps the movement pad and the drop pair between the tray's sides.
 
 ## Boot: the title poster
 

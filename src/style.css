@@ -2,6 +2,11 @@
   box-sizing: border-box;
 }
 
+/* Height of the touch control tray (safe-area inset added where used). */
+:root {
+  --tray-h: 146px;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -72,6 +77,11 @@ body.in-box #crosshair {
 
 #prompt.actionable:active {
   background: rgba(122, 106, 69, 0.75);
+}
+
+/* on touch the prompt floats in the view area, above the held items */
+body.touch #prompt {
+  bottom: calc(var(--tray-h) + env(safe-area-inset-bottom, 0px) + 88px);
 }
 
 #hud {
@@ -194,23 +204,10 @@ body.in-box #crosshair {
   transform-origin: bottom center;
 }
 
-/* On touch layouts the control clusters own the bottom corners, so each
-   hand rides just above its side's cluster: the movement pad is taller
-   than the drop-button pair, and the left-handed swap mirrors both. */
-body.touch #hand-left {
-  bottom: calc(150px + env(safe-area-inset-bottom, 0px));
-}
-
-body.touch #hand-right {
-  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
-}
-
-body.touch.left-handed #hand-left {
-  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
-}
-
-body.touch.left-handed #hand-right {
-  bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+/* On touch layouts the buttons live in the control tray; the held items
+   float above it in the view area, at the screen's left and right. */
+body.touch .hand-slot {
+  bottom: calc(var(--tray-h) + env(safe-area-inset-bottom, 0px) + 12px);
 }
 
 /* ---------- the box at your feet ---------- */
@@ -241,10 +238,11 @@ body.touch.left-handed #hand-right {
   transform: translateX(-50%) scale(0.92);
 }
 
-/* on touch the bottom corners belong to the control clusters, so the
-   box floats just above them, clear of every thumb zone */
+/* on touch the box sits centered on the tray's top rim — feet on the
+   bar, body in the view area, clear of every button */
 body.touch #box-entry {
-  bottom: calc(192px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--tray-h) + env(safe-area-inset-bottom, 0px) - 12px);
+  z-index: 31;
 }
 
 /* only in the maze — inside the box, the ladder is the way back */
@@ -449,12 +447,27 @@ body.touch #touch-controls {
   display: block;
 }
 
+/* The buttons' own delineated area: a bar across the bottom of the
+   screen. Everything above it is the view area. */
+#tc-tray {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--tray-h) + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, rgba(14, 11, 8, 0.88), rgba(8, 6, 4, 0.94));
+  border-top: 1px solid #7a6a45;
+  pointer-events: none;
+}
+
 .tc-side {
   position: absolute;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  bottom: env(safe-area-inset-bottom, 0px);
+  height: var(--tray-h);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   pointer-events: none;
 }
@@ -548,9 +561,12 @@ body.touch #touch-controls {
   }
 }
 
-/* narrow phones: shrink the clusters so the pad, hands, and action
-   buttons keep clear air between them instead of crowding the corners */
+/* narrow phones: shrink the buttons and the tray with them */
 @media (max-width: 420px) {
+  :root {
+    --tray-h: 128px;
+  }
+
   .tc-btn {
     width: 48px;
     height: 48px;
@@ -569,19 +585,5 @@ body.touch #touch-controls {
 
   #tc-drops .tc-btn {
     width: 68px;
-  }
-
-  body.touch #hand-left,
-  body.touch.left-handed #hand-right {
-    bottom: calc(132px + env(safe-area-inset-bottom, 0px));
-  }
-
-  body.touch #hand-right,
-  body.touch.left-handed #hand-left {
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-  }
-
-  body.touch #box-entry {
-    bottom: calc(170px + env(safe-area-inset-bottom, 0px));
   }
 }
