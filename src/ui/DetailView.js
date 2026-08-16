@@ -9,6 +9,14 @@ const ZOOM_OUT_DURATION = 0.45;
 const ease = (t) => t * t * (3 - 2 * t);
 const lerp = (a, b, t) => a + (b - a) * t;
 
+// These objects paint live, interactive DOM content (rebind buttons,
+// volume sliders, a checklist) over their world position instead of
+// static painted words. Unlike the read-only posters (whose text is
+// baked into the poster texture and left untouched by the DOM), their
+// panel needs an opaque surface — otherwise the object's own rendering
+// shows through and its texture collides with the DOM text on top of it.
+const WORLD_OPAQUE_IDS = ['poster-controls', 'poster-settings', 'bulletin'];
+
 // The "detailed view": walking up to something and looking at it closely.
 // For objects in the box (posters, bulletin board, desk) the isometric
 // camera physically flies up to the object, then the readable panel fades
@@ -257,6 +265,7 @@ export class DetailView {
       box.style.width = `${Math.round(this.currentPose.contentW * scale)}px`;
       box.style.height = `${Math.round(this.currentPose.contentH * scale)}px`;
       box.classList.add('panel-world', this.currentPose.panelClass || 'panel-paper');
+      if (WORLD_OPAQUE_IDS.includes(this.currentId)) box.classList.add('interactive');
     } else {
       box.style.width = '';
       box.style.height = '';
@@ -495,7 +504,15 @@ export class DetailView {
   _posterFooter(id) {
     const loc = this.gameState.itemLocations[id];
     const footer = document.createElement('div');
-    if (this.currentPose) footer.className = 'panel-actions';
+    if (this.currentPose) {
+      // Interactive posters can carry more rows than the fixed poster-sized
+      // panel is tall — anchoring this footer to the panel's own bottom
+      // edge (like the read-only posters do) would float it over the
+      // list's later rows instead of below them. Flowing it after the
+      // content lets it settle under the last row and scroll into view
+      // with the rest of the list.
+      footer.className = WORLD_OPAQUE_IDS.includes(id) ? 'panel-footer-flow' : 'panel-actions';
+    }
     if (loc?.scene === 'inventory-wall') {
       if (this.gameState.freeHand()) {
         const btn = document.createElement('button');

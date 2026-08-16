@@ -326,6 +326,28 @@ body.in-box #box-entry {
   padding-top: 16%;
 }
 
+/* Interactive world panels (Controls, Settings, the bulletin board) carry
+   live DOM content that the poster texture underneath doesn't have —
+   without an opaque surface the live-rendered object bleeds through and
+   its own painted words collide with the DOM text sitting on top of it. */
+#modal-box.panel-world.interactive {
+  background: #ece0bd;
+}
+
+/* This footer flows after the interactive content instead of pinning to
+   the panel's bottom edge, so a long list (e.g. the Controls poster's
+   full key binding table) pushes it below the last row and scrolls it
+   into view, rather than the fixed-size poster panel making it float
+   over mid-list rows. */
+.panel-footer-flow {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(107, 74, 43, 0.5);
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+
 .panel-actions {
   position: absolute;
   bottom: 4%;
