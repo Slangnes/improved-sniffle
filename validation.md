@@ -34,8 +34,9 @@ only the little avatar does. Its floor is a fine 11×9 grid of small
 tiles, so steps are short and precise. Box movement is absolute: W walks
 up the screen (north), S down, A left, D right, and the avatar turns to
 face its steps. Because the diorama never rotates there is **no turning
-inside the box** — the turn keys (Q/E) and ←/→ step sideways instead of
-spinning the avatar in place. The maze is first-person: W/S step along
+inside the box** — with empty arms the turn keys (Q/E) and ←/→ step
+sideways instead of spinning the avatar in place (while carrying
+furniture they rotate the carried piece instead — see V22). The maze is first-person: W/S step along
 your view, A/D **strafe**, Q/E **turn** 90°. The **arrow keys always
 work** on top of any bindings (↑↓ step; ←→ sidestep in the box, turn in
 the maze). Held keys chain steps with no dead frame between them, the
@@ -63,9 +64,11 @@ tappable and performs the action it names (a smaller hint line beneath
 it offers a secondary action, like moving furniture, with its own tap
 target). The movement pad is a single crawler rose with the turn buttons
 in its top corners (⟲ between ▲ and ◀, ⟳ between ▲ and ▶); the turn
-buttons appear **only in the maze** — inside the box there is nothing to
-turn, so they vanish and the pad keeps its shape. A left-handed setting
-swaps the movement pad and the drop pair between the tray's sides.
+buttons appear in the maze and, inside the box, **only while carrying
+furniture** (they rotate the carried piece) — otherwise there is nothing
+to turn, so they vanish and the pad keeps its shape. A left-handed
+setting swaps the movement pad and the drop pair between the tray's
+sides.
 
 ## Boot: the title poster
 
@@ -98,12 +101,20 @@ out.
   onto the poster's own texture (the DOM contributes only the take-down
   action); a vignette spotlights the focused object.
 - **V4 — Controls poster** lists every action with its key; clicking a
-  binding then pressing a new key rebinds it live (persisted).
+  binding then pressing a new key rebinds it live (persisted). Because its
+  content is live DOM (not words painted into the poster texture), the
+  panel is **opaque** — the rendered poster underneath must not bleed
+  through its own painted words into the binding list — and the take-down
+  action flows **below the last binding row** (scrolled into view with the
+  list), never floating over mid-list rows.
 - **V5 — Settings poster** has Music/SFX volume sliders, a Mute checkbox,
-  a Left-Handed Touch Layout checkbox, and Reset Save Data.
+  a Left-Handed Touch Layout checkbox, and Reset Save Data — on the same
+  opaque interactive panel as V4.
 - **V6 — Bulletin board** lists objectives; first is "Find your way to the
-  end of the maze".
-- **V7 — Desk** shows the ledger on the paper lying on it.
+  end of the maze". Same opaque interactive panel.
+- **V7 — Desk** is a proper writing desk (drawer pedestals, inkwell,
+  quill); its detailed view shows the ledger on the paper lying on it,
+  including a running count of steps walked.
 
 ## Movable posters
 
@@ -121,9 +132,13 @@ bottom. It has four item slots (two per shelf level), stored by slot
 index (`{scene: 'inventory-shelf', slot}`), so everything resting on it
 belongs to the case itself.
 
-- **V9 — Compass and map rest in bookshelf slots.** F picks each into the
-  next free hand — right first, then left — and each appears in its
-  hand's on-screen slot.
+- **V9 — The bookshelf has a detailed view, and items are taken from
+  it.** F beside the case flies the camera to face its open side — the
+  real 3D shelves stay visible behind a translucent listing of each
+  shelf's contents (`panel-shelf`, no opaque card). Tapping a listed item
+  takes it into the next free hand — right first, then left — and each
+  taken item appears in its hand's on-screen slot. Quick F-pickup applies
+  only to things lying on the floor.
 - **V10 — Per-hand shelf sorting.** Near an empty slot the prompt names
   the right hand's item first; that hand's key snaps it into the slot
   (recorded by slot index). Once compass and map are both back in slots,
@@ -184,11 +199,17 @@ belongs to the case itself.
 
 ## Movable furniture
 
-- **V22 — The bookshelf and desk can be carried.** Standing beside a
-  piece of furniture, the prompt (or its hint line) offers the grab key
-  (G): press it and the piece lifts and moves with your steps, one tile
-  at a time — everything in its slots rides along, still recorded by
-  slot index. A step that would push it out of the room, onto other
-  furniture, onto something lying on the floor, or onto the tile at the
-  ladder's foot is refused with a bump. Pressing grab again sets it
-  down on the grid, and the new position persists in the save.
+- **V22 — The bookshelf and desk can be carried, and rotated while
+  carried.** Standing beside a piece of furniture, the prompt (or its
+  hint line) offers the grab key (G): press it and the piece lifts and
+  moves with your steps, one tile at a time — everything in its slots
+  rides along, still recorded by slot index. While carrying, the turn
+  inputs get their box job back: Q/E (and ←/→, and the ⟲ ⟳ touch
+  buttons, which reappear only while carrying) rotate the piece a
+  quarter-turn, swapping its footprint; if the swing would land on you
+  the pivot nudges a tile aside, and if no clear pivot exists the turn
+  is refused with a bump. A step or turn that would put it out of the
+  room, onto other furniture, onto something lying on the floor, or
+  onto the tile at the ladder's foot is refused. Pressing grab again
+  sets it down on the grid, and the position **and orientation** persist
+  in the save.
