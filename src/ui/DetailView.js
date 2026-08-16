@@ -242,6 +242,9 @@ export class DetailView {
     this.content.innerHTML = '';
     const box = document.getElementById('modal-box');
     box.className = '';
+    // The unstarted title poster has exactly one way forward: BEGIN. No
+    // second button offering to stop looking at it.
+    this.closeBtn.classList.toggle('hidden', this.currentId === 'title' && !this.started);
     box.style.transition = 'none';
     box.style.transform = '';
     box.style.opacity = '';

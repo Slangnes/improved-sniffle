@@ -222,7 +222,17 @@ export class MazeScene {
     for (const mesh of this.itemMeshes.values()) this.scene.remove(mesh);
     this.itemMeshes.clear();
 
+    // Anything lying in a spot the current maze doesn't reach (say, left
+    // in an outer ring before the maze reshaped) would be lost forever —
+    // instead it finds its way back to the box.
+    const strays = [];
     for (const [id, loc] of this.gameState.itemLocationIn('maze')) {
+      const cellX = Math.round(loc.x / CELL_SIZE);
+      const cellY = Math.round(loc.z / CELL_SIZE);
+      if (!this.world.cellAt(cellX, cellY)) {
+        strays.push(id);
+        continue;
+      }
       const mesh = buildItemMesh(id);
       if (!mesh) continue;
       mesh.position.set(loc.x, POSTER_IDS.includes(id) ? 0.12 : 0.02, loc.z);
@@ -230,6 +240,7 @@ export class MazeScene {
       this.scene.add(mesh);
       this.itemMeshes.set(id, mesh);
     }
+    for (const id of strays) this.gameState.returnItemHome(id);
   }
 
   // First-person "held" view-models: each hand's item floats at its own
@@ -401,7 +412,7 @@ export class MazeScene {
       this.setToast(`Layer ${prevLayer} cleared. The maze extends outward...`, 3.5);
       if (this.onLayerComplete) this.onLayerComplete(this.world.layer);
     } else {
-      this.gameState.completeRun();
+      const returned = this.gameState.completeRun();
       this.world.reset();
       this.world.generateFirstLayer();
       this._rebuildStaticGeometry();
@@ -414,7 +425,12 @@ export class MazeScene {
       this.playerX = start.x;
       this.playerZ = start.z;
       this.visitedCells.clear();
-      this.setToast('You escaped the depths! The maze reshapes itself...', 4);
+      this.setToast(
+        returned.length
+          ? 'You escaped the depths! The maze reshapes itself — what you left behind finds its way back to the box.'
+          : 'You escaped the depths! The maze reshapes itself...',
+        4
+      );
       if (this.onRunComplete) this.onRunComplete();
     }
   }

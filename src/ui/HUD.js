@@ -23,7 +23,14 @@ for (const el of [handLeftEl, handRightEl]) {
 }
 
 // The prompt line doubles as a button: tapping it performs the action it
-// names. The handler receives the action the current prompt implies.
+// names. Below it an optional hint line offers a secondary action (like
+// grabbing furniture) with its own tap target.
+const promptMainEl = document.createElement('span');
+promptMainEl.id = 'prompt-main';
+const promptHintEl = document.createElement('span');
+promptHintEl.id = 'prompt-hint';
+promptEl.append(promptMainEl, promptHintEl);
+
 let promptTapHandler = null;
 
 export function setPromptTapHandler(fn) {
@@ -33,6 +40,13 @@ export function setPromptTapHandler(fn) {
 promptEl.addEventListener('click', () => {
   if (promptEl.dataset.action && promptTapHandler) {
     promptTapHandler(promptEl.dataset.action);
+  }
+});
+
+promptHintEl.addEventListener('click', (e) => {
+  if (promptHintEl.dataset.action && promptTapHandler) {
+    e.stopPropagation();
+    promptTapHandler(promptHintEl.dataset.action);
   }
 });
 
@@ -92,17 +106,22 @@ export function updateHandFaces({ mazeScene, inMaze, time }) {
   }
 }
 
-export function setPrompt(text, action) {
+export function setPrompt(text, action, hint, hintAction) {
   if (text) {
-    promptEl.textContent = text;
+    promptMainEl.textContent = text;
     promptEl.classList.remove('hidden');
     promptEl.classList.toggle('actionable', !!action);
     if (action) promptEl.dataset.action = action;
     else delete promptEl.dataset.action;
+    promptHintEl.textContent = hint || '';
+    promptHintEl.classList.toggle('hidden', !hint);
+    if (hint && hintAction) promptHintEl.dataset.action = hintAction;
+    else delete promptHintEl.dataset.action;
   } else {
     promptEl.classList.add('hidden');
     promptEl.classList.remove('actionable');
     delete promptEl.dataset.action;
+    delete promptHintEl.dataset.action;
   }
 }
 

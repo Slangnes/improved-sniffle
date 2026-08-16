@@ -79,6 +79,23 @@ body.in-box #crosshair {
   background: rgba(122, 106, 69, 0.75);
 }
 
+/* Secondary action hint under the main prompt line (e.g. moving
+   furniture); its own tap target. */
+#prompt-hint {
+  display: block;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px dashed rgba(122, 106, 69, 0.6);
+  font-size: 12px;
+  color: #c9b98a;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+#prompt-hint.hidden {
+  display: none !important;
+}
+
 /* on touch the prompt floats in the view area, above the held items */
 body.touch #prompt {
   bottom: calc(var(--tray-h) + env(safe-area-inset-bottom, 0px) + 88px);
@@ -541,6 +558,13 @@ body.touch #touch-controls {
   border-radius: 50%;
   background: rgba(10, 8, 6, 0.4);
   color: #c9b98a;
+}
+
+/* The box diorama never rotates, so there is nothing to turn: inside the
+   box the turn buttons disappear (the pad keeps its shape for the maze). */
+body.in-box .tc-btn.tc-turn {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* the two hand-drop buttons sit side by side, mirroring the hands */
