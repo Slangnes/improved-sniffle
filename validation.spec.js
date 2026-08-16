@@ -168,9 +168,14 @@ test('validation.md contract', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await expect(page.locator('#modal-layer')).toBeVisible();
     await expect(page.locator('#detail-begin')).toBeVisible();
-    // BEGIN is the only button: the × close control stays hidden until
-    // the game has begun.
-    await expect(page.locator('#modal-close')).toBeHidden();
+    // BEGIN is the only button: there is no × close control at all, and
+    // the unstarted title hides the step-back caption too.
+    await expect(page.locator('#modal-close')).toHaveCount(0);
+    await expect(page.locator('#modal-dismiss-hint')).toBeHidden();
+    // Tapping outside refuses to dismiss the unstarted title.
+    await page.mouse.click(80, 400);
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__box.detailView.isOpen())).toBe(true);
     // No modal card: the panel is sized to the poster (world panel, dark ink).
     await expect(page.locator('#modal-box')).toHaveClass(/panel-world/);
     await expect(page.locator('#modal-box')).toHaveClass(/panel-dark/);
@@ -213,15 +218,18 @@ test('validation.md contract', async ({ page }) => {
     await navigate(page, [[2, 4], [2, 0]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('How To Play poster');
     await openDetail(page);
-    // The world prompt hides while a detailed view is open — the × is
-    // the one and only "stop looking" control.
+    // The world prompt hides while a detailed view is open; the faint
+    // caption names the step-back gesture (there is no close button).
     await expect(page.locator('#prompt')).toBeHidden();
+    await expect(page.locator('#modal-dismiss-hint')).toBeVisible();
     await expect(page.locator('#modal-box')).toHaveClass(/panel-world/);
     // The poster's words are painted on the poster texture itself; the DOM
     // contributes only the take-down action.
     expect(await page.evaluate(() => window.__box.detailView.currentId)).toBe('poster-howto');
     await expect(page.locator('button[data-take-down="poster-howto"]')).toBeVisible();
-    await closeDetail(page);
+    // Stepping back is a click anywhere off the poster.
+    await page.mouse.click(80, 400);
+    await page.waitForFunction(() => !window.__box.detailView.isOpen(), null, { timeout: 20000 });
     expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(false);
   });
 

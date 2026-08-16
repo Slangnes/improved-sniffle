@@ -25,7 +25,9 @@ into the isometric room.
 
 Everything readable works the same way: walk up to a poster, the bulletin
 board, or the desk and use it, and the camera flies onto the object — the
-information is written **on the poster itself**, not in a pop-up. Settings
+information is written **on the poster itself**, not in a pop-up, and
+there is no close button: step back by clicking or tapping anywhere off
+the object (or Esc). Settings
 and key-rebinding live on the actual posters. Posters can be taken off the
 wall from their detailed view, carried rolled up, dropped anywhere — even
 in the maze — and hung back on any empty hook.

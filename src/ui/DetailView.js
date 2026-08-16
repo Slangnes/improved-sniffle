@@ -22,7 +22,7 @@ export class DetailView {
 
     this.layer = document.getElementById('modal-layer');
     this.content = document.getElementById('modal-content');
-    this.closeBtn = document.getElementById('modal-close');
+    this.dismissHint = document.getElementById('modal-dismiss-hint');
     this.viewport = document.getElementById('viewport');
     this.box = document.getElementById('modal-box');
 
@@ -37,7 +37,8 @@ export class DetailView {
     this.mazeScene = null;
     this.onBegin = null;
 
-    this.closeBtn.addEventListener('click', () => this.requestClose());
+    // There is no close button: stepping back is clicking or tapping
+    // anywhere off the object (or Escape).
     this.layer.addEventListener('click', (e) => {
       if (e.target === this.layer) this.requestClose();
     });
@@ -242,9 +243,9 @@ export class DetailView {
     this.content.innerHTML = '';
     const box = document.getElementById('modal-box');
     box.className = '';
-    // The unstarted title poster has exactly one way forward: BEGIN. No
-    // second button offering to stop looking at it.
-    this.closeBtn.classList.toggle('hidden', this.currentId === 'title' && !this.started);
+    // The unstarted title poster has exactly one way forward: BEGIN —
+    // every other view carries the faint step-back caption instead.
+    this.dismissHint.classList.toggle('hidden', this.currentId === 'title' && !this.started);
     box.style.transition = 'none';
     box.style.transform = '';
     box.style.opacity = '';

@@ -283,6 +283,12 @@ body.in-box #box-entry {
   pointer-events: none;
 }
 
+/* While a detailed view is open the layer catches clicks: anywhere off
+   the object steps back (there is no close button). */
+#modal-layer:not(.hidden) {
+  pointer-events: auto;
+}
+
 /* Spotlight the focused object; its neighbours fall into shadow. */
 #modal-layer.world-open {
   background: radial-gradient(
@@ -414,21 +420,24 @@ body.in-box #box-entry {
   width: 55%;
 }
 
-#modal-close {
+/* Faint caption naming the step-back gesture. It ignores the pointer, so
+   tapping it is tapping the backdrop — which steps back. */
+#modal-dismiss-hint {
   position: absolute;
-  top: -14px;
-  right: -14px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #241c10;
-  border: 2px solid #7a6a45;
-  font-size: 20px;
-  cursor: pointer;
-  color: #e8dfc8;
-  line-height: 1;
-  z-index: 2;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #c9b98a;
+  opacity: 0.75;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+  white-space: nowrap;
 }
+
+/* The modal layer sits above the control tray, so the caption keeps the
+   truly-bottom spot on touch layouts too — clear of the zoomed object. */
 
 /* slight push-in while inspecting a carried item */
 #viewport.inspect {

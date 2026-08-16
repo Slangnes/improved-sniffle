@@ -72,9 +72,10 @@ swaps the movement pad and the drop pair between the tray's sides.
 - **V1 — The game boots into a detailed view of the title poster.** No
   separate menu: on load the camera is zoomed onto the "Box & Bones"
   poster in the box with a BEGIN button, rendered on the poster itself
-  (dark panel, no modal card). BEGIN is the **only** button — the ×
-  close button is hidden until the game has begun, so the poster never
-  offers two ways forward. It cannot be dismissed without BEGIN.
+  (dark panel, no modal card). BEGIN is the **only** button — detailed
+  views have no × close button at all, and the step-back caption is
+  hidden here too. It cannot be dismissed without BEGIN (Escape and
+  tapping outside both refuse).
 - **V2 — BEGIN zooms out into the diorama.** The camera pulls back from
   the poster and settles at the fixed whole-room framing. Audio starts.
   Inside the box there is **no box at your feet and no shortcut out** —
@@ -87,9 +88,11 @@ Interacting (F, or tapping the prompt) with a poster, the bulletin board,
 or the desk flies
 the camera onto the object; its readable content appears **on the object's
 own surface** (the panel is sized to the zoomed poster/board/paper — no
-floating modal card). While a detailed view is open the world prompt line
-hides, so the × is the one and only "stop looking" control. Closing flies
-the camera back out.
+floating modal card). There are **no buttons for leaving**: stepping back
+is clicking or tapping anywhere off the object (or Escape) — a faint
+caption at the bottom of the screen names the gesture — and the world
+prompt line hides while a view is open. Closing flies the camera back
+out.
 
 - **V3 — How To Play poster** explains the game, with the words painted
   onto the poster's own texture (the DOM contributes only the take-down
