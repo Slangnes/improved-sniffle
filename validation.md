@@ -72,11 +72,17 @@ floating modal card). Closing flies the camera back out.
   onto the poster's own texture (the DOM contributes only the take-down
   action); a vignette spotlights the focused object.
 - **V4 — Controls poster** lists every action with its key; clicking a
-  binding then pressing a new key rebinds it live (persisted).
+  binding then pressing a new key rebinds it live (persisted). Because its
+  content is live DOM (not words painted into the poster texture), the
+  panel is **opaque** — the rendered poster underneath must not bleed
+  through its own painted words into the binding list — and the take-down
+  action flows **below the last binding row** (scrolled into view with the
+  list), never floating over mid-list rows.
 - **V5 — Settings poster** has Music/SFX volume sliders, a Mute checkbox,
-  a Left-Handed Touch Layout checkbox, and Reset Save Data.
+  a Left-Handed Touch Layout checkbox, and Reset Save Data — on the same
+  opaque interactive panel as V4.
 - **V6 — Bulletin board** lists objectives; first is "Find your way to the
-  end of the maze".
+  end of the maze". Same opaque interactive panel.
 - **V7 — Desk** shows the ledger on the paper lying on it.
 
 ## Movable posters

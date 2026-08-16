@@ -219,9 +219,28 @@ test('validation.md contract', async ({ page }) => {
     expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(false);
   });
 
-  await test.step('V4: Controls poster rebinds keys live', async () => {
+  await test.step('V4: Controls poster rebinds keys live on an opaque panel', async () => {
     await navigate(page, [[3, 0]]);
     await openDetail(page);
+    // Live DOM content needs an opaque surface: the rendered poster under
+    // the panel must not bleed its painted words through the binding list.
+    await expect(page.locator('#modal-box')).toHaveClass(/interactive/);
+    const bg = await page
+      .locator('#modal-box')
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+    // The take-down action flows below the last binding row rather than
+    // floating over mid-list rows in the fixed-size poster panel.
+    await page.evaluate(() => {
+      const c = document.getElementById('modal-content');
+      c.scrollTop = c.scrollHeight;
+    });
+    const lastRow = page.locator('.keybind-row').last();
+    const footerBtn = page.locator('button[data-take-down="poster-controls"]');
+    await expect(footerBtn).toBeVisible();
+    const lastBox = await lastRow.boundingBox();
+    const footBox = await footerBtn.boundingBox();
+    expect(footBox.y).toBeGreaterThanOrEqual(lastBox.y + lastBox.height - 1);
     const row = page.locator('.keybind-row', { hasText: 'Left Hand: Drop / Place' });
     await expect(row.locator('button.rebind')).toHaveText('Z');
     await row.locator('button.rebind').click();
@@ -237,6 +256,7 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V5: Settings poster: volumes, mute, left-handed layout', async () => {
     await navigate(page, [[4, 0]]);
     await openDetail(page);
+    await expect(page.locator('#modal-box')).toHaveClass(/interactive/);
     const musicRow = page.locator('.keybind-row', { hasText: 'Music Volume' });
     await expect(musicRow.locator('input[type=range]')).toBeVisible();
     await expect(
@@ -260,6 +280,7 @@ test('validation.md contract', async ({ page }) => {
   await test.step('V6: bulletin board shows the starting objective', async () => {
     await navigate(page, [[7, 0]]);
     await openDetail(page);
+    await expect(page.locator('#modal-box')).toHaveClass(/interactive/);
     await expect(page.locator('#modal-content')).toContainText('Find your way to the end of the maze');
     await closeDetail(page);
   });
