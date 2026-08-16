@@ -45,8 +45,10 @@ The player has a **left hand and a right hand**; each holds one item. The
 right hand fills first. Each hand's item shows on its own side of the
 screen (bottom-left / bottom-right) and is tapped to inspect. Z drops,
 shelves, or hangs the left hand's item; C the right hand's. On touch, each
-hand has its own DROP button on its own side of the screen, and a
-left-handed setting swaps the movement pad and the turn/use cluster
+hand has its own DROP button on its own side of the screen. The movement
+pad is a single crawler rose with the turn buttons in its top corners
+(⟲ between ▲ and ◀, ⟳ between ▲ and ▶), identical in both scenes; a
+left-handed setting swaps the movement pad and the use/box cluster
 between sides (the hand buttons stay on their hands' sides).
 
 ## Boot: the title poster
@@ -135,6 +137,6 @@ floating modal card). Closing flies the camera back out.
 ## Touch
 
 - **V21 — Touch controls drive both scenes.** The D-pad steps and strafes,
-  the ⟲ button turns, USE interacts (including climbing the ladder — the
-  BOX button exists only in the maze), and holding ▲ in the maze steps one
-  cell. Buttons route through current bindings.
+  its corner ⟲ button turns, USE interacts (including climbing the ladder —
+  the BOX button exists only in the maze), and holding ▲ in the maze steps
+  one cell. Buttons route through current bindings.

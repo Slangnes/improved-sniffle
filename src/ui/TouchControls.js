@@ -5,7 +5,10 @@
 //
 // Layout mirrors the hands: the left side of the screen carries the left
 // hand's drop button (plus, by default, the movement pad); the right side
-// carries the right hand's drop button with the turn/use cluster. The
+// carries the right hand's drop button with the use/box cluster. The pad
+// is a single crawler rose — turn buttons sit in the top corners, each
+// between the forward key and its strafe key (⟲ between ▲ and ◀, ⟳
+// between ▲ and ▶) — and drives every scene the same way. The
 // left-handed setting swaps the movement and action clusters between the
 // sides — the hand drop buttons stay on their own hand's side.
 
@@ -24,20 +27,18 @@ export class TouchControls {
         <button type="button" class="tc-btn tc-wide" data-action="dropLeft">L·DROP</button>
         <div id="tc-move">
           <div id="tc-dpad">
+            <button type="button" class="tc-btn tc-turn" data-action="turnLeft" style="grid-area: tl">&#10226;</button>
             <button type="button" class="tc-btn" data-action="moveForward" style="grid-area: up">&#9650;</button>
+            <button type="button" class="tc-btn tc-turn" data-action="turnRight" style="grid-area: tr">&#10227;</button>
             <button type="button" class="tc-btn" data-action="strafeLeft" style="grid-area: left">&#9664;</button>
-            <button type="button" class="tc-btn" data-action="strafeRight" style="grid-area: right">&#9654;</button>
             <button type="button" class="tc-btn" data-action="moveBackward" style="grid-area: down">&#9660;</button>
+            <button type="button" class="tc-btn" data-action="strafeRight" style="grid-area: right">&#9654;</button>
           </div>
         </div>
       </div>
       <div id="tc-right" class="tc-side">
         <button type="button" class="tc-btn tc-wide" data-action="dropRight">R·DROP</button>
         <div id="tc-act">
-          <div id="tc-turns">
-            <button type="button" class="tc-btn" data-action="turnLeft">&#10226;</button>
-            <button type="button" class="tc-btn" data-action="turnRight">&#10227;</button>
-          </div>
           <button type="button" class="tc-btn tc-wide" data-action="interact">USE</button>
           <button type="button" class="tc-btn tc-wide tc-box" data-action="inventory">BOX</button>
         </div>
@@ -67,7 +68,7 @@ export class TouchControls {
     this.applyHandedness(localStorage.getItem('box-and-bones:leftHanded') === '1');
   }
 
-  // Swap the movement pad and the turn/use cluster between the two sides.
+  // Swap the movement pad and the use/box cluster between the two sides.
   // Each side's hand-drop button stays put.
   applyHandedness(leftHanded) {
     const leftSide = this.root.querySelector('#tc-left');

@@ -130,9 +130,10 @@ body.in-box #crosshair {
   box-shadow: 0 0 6px #e8c96a55;
 }
 
-/* on touch layouts the control clusters own the bottom corners */
+/* on touch layouts the control clusters own the bottom corners; the
+   two-row pad is short enough that the hands sit just above it */
 body.touch .hand-slot {
-  bottom: calc(238px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(204px + env(safe-area-inset-bottom, 0px));
 }
 
 #minimap-wrap {
@@ -433,18 +434,22 @@ body.touch #touch-controls {
   pointer-events: none;
 }
 
+/* One crawler rose: forward/backward up the middle, strafes at the sides,
+   and the turn buttons in the top corners — each between the forward
+   button and its strafe button (⟲ turns left, ⟳ turns right). */
 #tc-dpad {
   display: grid;
   grid-template-areas:
-    '. up .'
-    'left mid right'
-    '. down .';
-  gap: 8px;
+    'tl up tr'
+    'left down right';
+  gap: 10px;
 }
 
-#tc-turns {
-  display: flex;
-  gap: 10px;
+/* turns rotate in place — rounder and dimmer than the step buttons */
+.tc-btn.tc-turn {
+  border-radius: 50%;
+  background: rgba(10, 8, 6, 0.4);
+  color: #c9b98a;
 }
 
 /* the BOX button only exists in the maze — the ladder is the way out */
@@ -461,5 +466,29 @@ body.in-box .tc-box {
 
   #hud-objective {
     max-width: 60vw;
+  }
+}
+
+/* narrow phones: shrink the clusters so the pad, hands, and action
+   buttons keep clear air between them instead of crowding the corners */
+@media (max-width: 420px) {
+  .tc-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 17px;
+  }
+
+  .tc-btn.tc-wide {
+    width: 84px;
+    height: 42px;
+    font-size: 11px;
+  }
+
+  #tc-dpad {
+    gap: 8px;
+  }
+
+  body.touch .hand-slot {
+    bottom: calc(182px + env(safe-area-inset-bottom, 0px));
   }
 }
