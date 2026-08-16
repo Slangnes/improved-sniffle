@@ -119,9 +119,15 @@ function frame() {
 
   HUD.updateModeAndObjective(gameState.scene, gameState);
   HUD.updateHands(gameState);
+  // While a detailed view (or the climb transition) has the screen, the
+  // world prompt disappears — no leftover "look at" button floating over
+  // an already-open poster.
+  const promptsBusy = detailView.isOpen() || transition.playing;
   HUD.setPrompt(
-    current.toastMessage || current.prompt,
-    current.toastMessage ? null : current.promptAction
+    promptsBusy ? null : current.toastMessage || current.prompt,
+    promptsBusy || current.toastMessage ? null : current.promptAction,
+    promptsBusy || current.toastMessage ? null : current.promptHint,
+    promptsBusy || current.toastMessage ? null : current.promptHintAction
   );
   HUD.updateHandFaces({
     mazeScene,

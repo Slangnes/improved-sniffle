@@ -168,6 +168,14 @@ test('validation.md contract', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await expect(page.locator('#modal-layer')).toBeVisible();
     await expect(page.locator('#detail-begin')).toBeVisible();
+    // BEGIN is the only button: there is no × close control at all, and
+    // the unstarted title hides the step-back caption too.
+    await expect(page.locator('#modal-close')).toHaveCount(0);
+    await expect(page.locator('#modal-dismiss-hint')).toBeHidden();
+    // Tapping outside refuses to dismiss the unstarted title.
+    await page.mouse.click(80, 400);
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__box.detailView.isOpen())).toBe(true);
     // No modal card: the panel is sized to the poster (world panel, dark ink).
     await expect(page.locator('#modal-box')).toHaveClass(/panel-world/);
     await expect(page.locator('#modal-box')).toHaveClass(/panel-dark/);
@@ -207,20 +215,26 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V3: How To Play poster, read on the poster', async () => {
-    await navigate(page, [[2, 2], [2, 0]]);
+    await navigate(page, [[2, 4], [2, 0]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('How To Play poster');
     await openDetail(page);
+    // The world prompt hides while a detailed view is open; the faint
+    // caption names the step-back gesture (there is no close button).
+    await expect(page.locator('#prompt')).toBeHidden();
+    await expect(page.locator('#modal-dismiss-hint')).toBeVisible();
     await expect(page.locator('#modal-box')).toHaveClass(/panel-world/);
     // The poster's words are painted on the poster texture itself; the DOM
     // contributes only the take-down action.
     expect(await page.evaluate(() => window.__box.detailView.currentId)).toBe('poster-howto');
     await expect(page.locator('button[data-take-down="poster-howto"]')).toBeVisible();
-    await closeDetail(page);
+    // Stepping back is a click anywhere off the poster.
+    await page.mouse.click(80, 400);
+    await page.waitForFunction(() => !window.__box.detailView.isOpen(), null, { timeout: 20000 });
     expect(await page.evaluate(() => window.__box.inventoryScene.cameraOverride)).toBe(false);
   });
 
   await test.step('V4: Controls poster rebinds keys live', async () => {
-    await navigate(page, [[3, 0]]);
+    await navigate(page, [[4, 0]]);
     await openDetail(page);
     const row = page.locator('.keybind-row', { hasText: 'Left Hand: Drop / Place' });
     await expect(row.locator('button.rebind')).toHaveText('Z');
@@ -235,7 +249,7 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V5: Settings poster: volumes, mute, left-handed layout', async () => {
-    await navigate(page, [[4, 0]]);
+    await navigate(page, [[6, 0]]);
     await openDetail(page);
     const musicRow = page.locator('.keybind-row', { hasText: 'Music Volume' });
     await expect(musicRow.locator('input[type=range]')).toBeVisible();
@@ -258,14 +272,14 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V6: bulletin board shows the starting objective', async () => {
-    await navigate(page, [[7, 0]]);
+    await navigate(page, [[10, 0]]);
     await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Find your way to the end of the maze');
     await closeDetail(page);
   });
 
   await test.step('V7: desk shows the ledger on its paper', async () => {
-    await navigate(page, [[5, 0], [5, 5], [6, 5]]);
+    await navigate(page, [[8, 6]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('Desk');
     await openDetail(page);
     await expect(page.locator('#modal-content')).toContainText('Current maze layer');
@@ -274,7 +288,7 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V8: posters come off the wall into a hand, drop as scrolls, re-hang', async () => {
-    await navigate(page, [[5, 5], [5, 0], [2, 0]]);
+    await navigate(page, [[2, 0]]);
     await openDetail(page);
     await page.locator('button[data-take-down="poster-howto"]').click();
     await page.waitForFunction(() => !window.__box.detailView.isOpen(), null, { timeout: 20000 });
@@ -285,7 +299,7 @@ test('validation.md contract', async ({ page }) => {
     const dropped = await page.evaluate(() => window.__box.gameState.itemLocations['poster-howto']);
     expect(dropped.scene).toBe('inventory');
     const tile = await boxTile(page);
-    expect(Math.hypot(dropped.x - (-5.25 + tile.col * 1.5), dropped.z - (-3.75 + tile.row * 1.5))).toBeLessThan(0.6);
+    expect(Math.hypot(dropped.x - (-5 + tile.col), dropped.z - (-4 + tile.row))).toBeLessThan(0.6);
 
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('pick up the How To Play poster');
     await page.keyboard.press('f');
@@ -300,11 +314,11 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V9: compass and map pick up into right then left hand', async () => {
-    await navigate(page, [[1, 0], [1, 1]]);
+    await navigate(page, [[1, 4]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('pick up the Compass');
     await page.keyboard.press('f');
     await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.right)).toBe('compass');
-    await navigate(page, [[1, 2]]);
+    await navigate(page, [[1, 6]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('pick up the Map');
     await page.keyboard.press('f');
     await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.left)).toBe('map');
@@ -313,29 +327,29 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V10: per-hand shelf sorting completes the tidy objective', async () => {
-    await navigate(page, [[1, 3]]);
+    await navigate(page, [[1, 4]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('place the Compass on the shelf');
     await page.keyboard.press('c');
     await expect
       .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.compass))
-      .toEqual({ scene: 'inventory', x: -5.47, z: 0.6 });
+      .toEqual({ scene: 'inventory-shelf', slot: 0 });
     let tidy = await page.evaluate(() =>
       window.__box.gameState.objectives.find((o) => o.id === 'tidy-shelf')
     );
     expect(tidy.done).toBe(false); // map still in the left hand
-    await navigate(page, [[1, 4]]);
+    await navigate(page, [[1, 6]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('place the Map on the shelf');
     await page.keyboard.press('z');
     await expect
       .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.map))
-      .toEqual({ scene: 'inventory', x: -5.47, z: 2 });
+      .toEqual({ scene: 'inventory-shelf', slot: 1 });
     tidy = await page.evaluate(() =>
       window.__box.gameState.objectives.find((o) => o.id === 'tidy-shelf')
     );
     expect(tidy.done).toBe(true);
     // pick both back up for the maze half of the run
     await page.keyboard.press('f'); // map (at this slot) -> right hand
-    await navigate(page, [[1, 3]]);
+    await navigate(page, [[1, 4]]);
     await page.keyboard.press('f'); // compass -> left hand
     expect(await page.evaluate(() => window.__box.gameState.hands)).toEqual({
       right: 'map',
@@ -357,12 +371,12 @@ test('validation.md contract', async ({ page }) => {
   });
 
   await test.step('V12: a hand key free-drops its item beside the player', async () => {
-    await navigate(page, [[3, 3]]);
+    await navigate(page, [[3, 4]]);
     await page.keyboard.press('z'); // left hand: compass
     const loc = await page.evaluate(() => window.__box.gameState.itemLocations.compass);
     expect(loc.scene).toBe('inventory');
     const t = await boxTile(page);
-    expect(Math.hypot(loc.x - (-5.25 + t.col * 1.5), loc.z - (-3.75 + t.row * 1.5))).toBeLessThan(0.6);
+    expect(Math.hypot(loc.x - (-5 + t.col), loc.z - (-4 + t.row))).toBeLessThan(0.6);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('pick up the Compass');
     await page.keyboard.press('f');
     await expect.poll(() => page.evaluate(() => window.__box.gameState.hands.left)).toBe('compass');
@@ -376,7 +390,7 @@ test('validation.md contract', async ({ page }) => {
         if (el.classList.contains('active')) window.__sawFade = true;
       }).observe(el, { attributes: true, attributeFilter: ['class'] });
     });
-    await navigate(page, [[3, 3], [3, 5]]);
+    await navigate(page, [[5, 7]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('climb out');
     await page.keyboard.press('f');
     await page.waitForFunction(
@@ -494,12 +508,23 @@ test('validation.md contract', async ({ page }) => {
     await teleportToExit();
     await page.waitForFunction(() => window.__box.gameState.mazeLayer === 3, null, { timeout: 10000 });
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(11);
+    // Leave the compass lying in the outer ring: reshaping the maze would
+    // orphan it, so completing the run must bring it back to the box.
+    await page.keyboard.press('z'); // left hand: compass
+    await expect
+      .poll(() => page.evaluate(() => window.__box.gameState.itemLocations.compass?.scene))
+      .toBe('maze');
     await teleportToExit();
     await page.waitForFunction(() => window.__box.gameState.runsCompleted === 1, null, {
       timeout: 10000,
     });
     expect(await page.evaluate(() => window.__box.gameState.mazeLayer)).toBe(1);
     expect(await page.evaluate(() => window.__box.mazeScene.world.halfExtent)).toBe(3);
+    expect(await page.evaluate(() => window.__box.gameState.itemLocations.compass)).toEqual({
+      scene: 'inventory-shelf',
+      slot: 0,
+    });
+    expect(await page.evaluate(() => window.__box.gameState.hands.left)).toBe(null);
   });
 
   await test.step('V17: per-hand drops work in the maze', async () => {
@@ -538,8 +563,13 @@ test('validation.md contract', async ({ page }) => {
     );
     expect(save.scene).toBe('inventory');
     expect(save.runsCompleted).toBe(1);
-    expect(save.hands).toEqual({ left: 'compass', right: 'map' });
+    expect(save.hands).toEqual({ left: null, right: 'map' });
+    expect(save.itemLocations.compass).toEqual({ scene: 'inventory-shelf', slot: 0 });
     expect(save.itemLocations['poster-howto']).toEqual({ scene: 'inventory-wall', anchor: 0 });
+    expect(save.furniture).toEqual({
+      bookshelf: { col: 0, row: 4 },
+      desk: { col: 8, row: 7 },
+    });
     expect(errors).toEqual([]);
   });
 
@@ -575,17 +605,13 @@ test('validation.md contract', async ({ page }) => {
       })
     ).toBe(true);
 
-    // Turn button rotates the avatar (movement stays screen-absolute).
-    const before = await boxTile(page);
+    // Inside the box there is nothing to turn: the ⟲ ⟳ buttons are hidden.
     const turnBtn = page.locator('[data-action="turnLeft"]');
-    await turnBtn.dispatchEvent('pointerdown');
-    await turnBtn.dispatchEvent('pointerup');
-    await expect
-      .poll(() => page.evaluate(() => window.__box.inventoryScene.facing), { timeout: 5000 })
-      .toBe((before.facing + 3) % 4);
+    await expect(turnBtn).toBeHidden();
+    await expect(page.locator('[data-action="turnRight"]')).toBeHidden();
 
     // Climb out by tapping the prompt line at the ladder, then step in the maze.
-    await navigate(page, [[3, 3], [3, 5]]);
+    await navigate(page, [[5, 7]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('climb out');
     await expect(page.locator('#prompt')).toHaveClass(/actionable/);
     await page.locator('#prompt').click();
@@ -610,6 +636,16 @@ test('validation.md contract', async ({ page }) => {
       Math.abs(cellAfter.x - cellBefore.x) + Math.abs(cellAfter.y - cellBefore.y)
     ).toBe(1);
 
+    // In the maze the turn buttons return, and ⟲ rotates 90°.
+    await expect(turnBtn).toBeVisible();
+    const f0 = await page.evaluate(() => window.__box.mazeScene.facing);
+    await turnBtn.dispatchEvent('pointerdown');
+    await turnBtn.dispatchEvent('pointerup');
+    await expect
+      .poll(() => page.evaluate(() => window.__box.mazeScene.facing), { timeout: 5000 })
+      .toBe((f0 + 3) % 4);
+    await page.waitForFunction(() => !window.__box.mazeScene.isAnimating);
+
     // Tapping the cardboard box at your feet looks back into the box.
     await expect(page.locator('#box-entry')).toBeVisible();
     await page.locator('#box-entry').click();
@@ -619,5 +655,58 @@ test('validation.md contract', async ({ page }) => {
       { timeout: 30000 }
     );
     await expect(page.locator('#box-entry')).toBeHidden();
+  });
+
+  await test.step('V22: the bookshelf can be carried to a new spot and set down', async () => {
+    await navigate(page, [[1, 8], [1, 5]]);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => window.__box.inventoryScene.promptHint || window.__box.inventoryScene.prompt
+          ),
+        { timeout: 10000 }
+      )
+      .toContain('move the Bookshelf');
+    expect(await page.evaluate(() => window.__box.gameState.furniture.bookshelf)).toEqual({
+      col: 0,
+      row: 4,
+    });
+
+    // Grab it, carry it one tile east, set it down.
+    await page.keyboard.press('g');
+    await expect
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.grabbing))
+      .toBe('bookshelf');
+    expect(await boxStep(page, 'd')).toBe(true);
+    await page.keyboard.press('g');
+    await expect.poll(() => page.evaluate(() => window.__box.inventoryScene.grabbing)).toBe(null);
+    expect(await page.evaluate(() => window.__box.gameState.furniture.bookshelf)).toEqual({
+      col: 1,
+      row: 4,
+    });
+    // Everything in its slots rode along, still recorded by slot index,
+    // and the new position is in the save.
+    expect(await page.evaluate(() => window.__box.gameState.itemLocations.compass)).toEqual({
+      scene: 'inventory-shelf',
+      slot: 0,
+    });
+    const save = await page.evaluate(() => JSON.parse(localStorage.getItem('box-and-bones:save')));
+    expect(save.furniture.bookshelf).toEqual({ col: 1, row: 4 });
+
+    // Carry it back west; once it stands against the wall a further step
+    // is refused with a bump.
+    await page.keyboard.press('g');
+    await expect
+      .poll(() => page.evaluate(() => window.__box.inventoryScene.grabbing))
+      .toBe('bookshelf');
+    expect(await boxStep(page, 'a')).toBe(true);
+    expect(await boxStep(page, 'a', 800)).toBe(false);
+    await page.keyboard.press('g');
+    await expect.poll(() => page.evaluate(() => window.__box.inventoryScene.grabbing)).toBe(null);
+    expect(await page.evaluate(() => window.__box.gameState.furniture.bookshelf)).toEqual({
+      col: 0,
+      row: 4,
+    });
   });
 });

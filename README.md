@@ -25,20 +25,26 @@ into the isometric room.
 
 Everything readable works the same way: walk up to a poster, the bulletin
 board, or the desk and use it, and the camera flies onto the object — the
-information is written **on the poster itself**, not in a pop-up. Settings
+information is written **on the poster itself**, not in a pop-up, and
+there is no close button: step back by clicking or tapping anywhere off
+the object (or Esc). Settings
 and key-rebinding live on the actual posters. Posters can be taken off the
 wall from their detailed view, carried rolled up, dropped anywhere — even
 in the maze — and hung back on any empty hook.
 
 Movement is one square at a time everywhere, like a classic dungeon
 crawler (Wizardry, Eye of the Beholder). The box is a fixed isometric
-diorama — the camera frames the whole room and never moves while you walk.
-**What you press is where you go**: W walks up the screen, S down, A left,
-D right, and the little hooded explorer turns to face its steps; the
-ladder is the only way out, and climbing back in lands you at its foot.
-In the maze it's first-person: W/S step, A/D strafe, Q/E turn. Held keys
-chain steps smoothly, the newest pressed direction wins, and the arrow
-keys always work (↑↓ step, ←→ turn).
+diorama — the camera frames the whole room and never moves while you
+walk — with a fine grid of small floor tiles, so steps are short and
+precise. **What you press is where you go**: W walks up the screen, S
+down, A left, D right, and the little hooded explorer turns to face its
+steps. Because the diorama never rotates there is no turning inside the
+box — Q/E and the ←/→ arrows step sideways too (and the on-screen turn
+buttons only appear in the maze). The ladder is the only way out, and
+climbing back in lands you at its foot. In the maze it's first-person:
+W/S step, A/D strafe, Q/E turn. Held keys chain steps smoothly, the
+newest pressed direction wins, and the arrow keys always work (↑↓ step;
+←→ sidestep in the box, turn in the maze).
 
 You have a **left hand and a right hand**. Each holds one item; what your
 left hand carries sits at the bottom-left of the screen (and in the maze,
@@ -56,22 +62,31 @@ setting swaps the pad and action clusters.
 | ----------------------------------- | ------- |
 | Step forward / back                 | W S     |
 | Strafe left / right                 | A D     |
-| Turn left / right                   | Q E     |
+| Turn left / right (maze; sidestep in the box) | Q E |
 | Use / interact                      | F       |
+| Grab / move furniture (in the box)  | G       |
 | Left hand: drop, shelve, or hang    | Z       |
 | Right hand: drop, shelve, or hang   | C       |
 | Look into your box (maze only)      | I       |
 | Toggle Compass / Map overlays       | 1 / 2   |
-| Arrow keys (always active)          | ↑↓ step, ←→ turn |
+| Arrow keys (always active)          | ↑↓ step; ←→ sidestep (box) / turn (maze) |
 | Mute audio                          | M       |
 
 ## What's in the box
 
-- **Shelves** with slots to sort your things into — a **Compass** (points
-  toward the current exit) and a **Map** (charts everywhere you've walked)
-  start out resting there. Stand at an empty slot and press Q to sort a
-  carried item back into place.
+- A **bookshelf** — a proper wooden case with a row of old books along
+  the bottom and item slots on its two middle shelves. A **Compass**
+  (points toward the current exit) and a **Map** (charts everywhere
+  you've walked) start out resting there. Stand at an empty slot and a
+  hand's drop key (Z / C) sorts that hand's item back into place.
 - A **desk** with a running ledger of your stats.
+- Both the bookshelf and the desk are **movable**: stand beside one,
+  press G to pick it up, walk it anywhere on the grid (everything on its
+  shelves rides along), and press G again to set it down. It can't be
+  parked on the ladder's tile, on other furniture, or on anything lying
+  on the floor.
+- **Nothing is ever lost**: anything left lying in the maze when it
+  reshapes at the end of a run finds its way back to the box on its own.
 - A **bulletin board** listing your current objectives.
 - **Posters**: the fixed title poster, plus How To Play, Controls, and
   Settings — all readable in detailed view, all but the title removable

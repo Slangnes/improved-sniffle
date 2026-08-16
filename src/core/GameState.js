@@ -1,8 +1,11 @@
 const STORAGE_KEY = 'box-and-bones:save';
 
-// Items that live on shelf slots when the game starts; putting them all back
-// completes the tidy objective.
+// Items that live in bookshelf slots when the game starts; putting them all
+// back completes the tidy objective.
 const SHELVED_ITEM_IDS = ['compass', 'map'];
+
+// The bookshelf has this many item slots (two per shelf level).
+export const SHELF_SLOT_COUNT = 4;
 
 // Posters that hang on wall anchors and can be taken down, carried rolled
 // up, dropped, shelved, or re-hung. The title poster is fixed to the wall.
@@ -16,16 +19,30 @@ export const ITEM_LABELS = {
   'poster-settings': 'Settings poster',
 };
 
-// Must match InventoryScene's shelf slot coordinates (slots 0 and 1) so items
-// start out actually resting on the shelf. Posters start on wall anchors
-// matching their POSTER_IDS index.
+// Where each item lives on a fresh save. Shelf slots are stored by index —
+// the bookshelf itself can be moved around the box, and everything resting
+// on it rides along. Posters start on wall anchors matching their
+// POSTER_IDS index.
 const DEFAULT_ITEM_HOMES = {
-  compass: { scene: 'inventory', x: -5.47, z: -2 },
-  map: { scene: 'inventory', x: -5.47, z: -0.7 },
+  compass: { scene: 'inventory-shelf', slot: 0 },
+  map: { scene: 'inventory-shelf', slot: 1 },
   'poster-howto': { scene: 'inventory-wall', anchor: 0 },
   'poster-controls': { scene: 'inventory-wall', anchor: 1 },
   'poster-settings': { scene: 'inventory-wall', anchor: 2 },
 };
+
+// Movable furniture, stored as the grid anchor (min col/row) of each
+// piece's footprint on the box floor. InventoryScene owns the footprint
+// sizes and meshes; this is only where they stand.
+const DEFAULT_FURNITURE = {
+  bookshelf: { col: 0, row: 4 },
+  desk: { col: 8, row: 7 },
+};
+
+// Older saves stored shelved items at the old wall-board coordinates;
+// map those onto bookshelf slot indices.
+const LEGACY_SHELF_X = -5.47;
+const LEGACY_SHELF_Z = [-2, -0.7, 0.6, 2];
 
 export class GameState {
   constructor() {
@@ -48,11 +65,26 @@ export class GameState {
     this.activeCompass = saved?.activeCompass ?? true;
     this.activeMap = saved?.activeMap ?? true;
     this.itemLocations = saved?.itemLocations ?? JSON.parse(JSON.stringify(DEFAULT_ITEM_HOMES));
-    // Older saves predate movable posters: hang any poster that has no
-    // recorded location and is not carried.
-    for (const id of POSTER_IDS) {
+    this.furniture = {
+      ...JSON.parse(JSON.stringify(DEFAULT_FURNITURE)),
+      ...(saved?.furniture ?? {}),
+    };
+
+    // Migrate pre-bookshelf saves: shelved items used to be stored at the
+    // old wall boards' world coordinates.
+    for (const [id, loc] of Object.entries(this.itemLocations)) {
+      if (loc?.scene !== 'inventory' || Math.abs(loc.x - LEGACY_SHELF_X) > 0.25) continue;
+      const slot = LEGACY_SHELF_Z.findIndex((z) => Math.abs(loc.z - z) < 0.25);
+      if (slot !== -1 && !this.shelfSlotOccupant(slot)) {
+        this.itemLocations[id] = { scene: 'inventory-shelf', slot };
+      }
+    }
+
+    // Nothing is ever allowed to vanish: any known item that is neither in
+    // a hand nor recorded anywhere is restored to a sensible home.
+    for (const id of Object.keys(DEFAULT_ITEM_HOMES)) {
       if (!this.itemLocations[id] && !this.hasItem(id)) {
-        this.itemLocations[id] = JSON.parse(JSON.stringify(DEFAULT_ITEM_HOMES[id]));
+        this._sendHome(id);
       }
     }
     this.objectives = saved?.objectives ?? [
@@ -79,6 +111,7 @@ export class GameState {
       activeCompass: this.activeCompass,
       activeMap: this.activeMap,
       itemLocations: this.itemLocations,
+      furniture: this.furniture,
       objectives: this.objectives,
       stepsTaken: this.stepsTaken,
     };
@@ -147,6 +180,16 @@ export class GameState {
     return id;
   }
 
+  // Sort a hand's item into a bookshelf slot.
+  shelveFromHand(side, slot) {
+    const id = this.hands[side];
+    if (!id || this.shelfSlotOccupant(slot)) return null;
+    this.hands[side] = null;
+    this.itemLocations[id] = { scene: 'inventory-shelf', slot };
+    this._notify();
+    return id;
+  }
+
   hangPosterFromHand(side, anchorIndex) {
     const id = this.hands[side];
     if (!id || !POSTER_IDS.includes(id)) return null;
@@ -167,6 +210,59 @@ export class GameState {
       if (loc?.scene === 'inventory-wall' && loc.anchor === anchorIndex) return id;
     }
     return null;
+  }
+
+  shelfSlotOccupant(slot) {
+    for (const [id, loc] of Object.entries(this.itemLocations)) {
+      if (loc?.scene === 'inventory-shelf' && loc.slot === slot) return id;
+    }
+    return null;
+  }
+
+  freeShelfSlot() {
+    for (let i = 0; i < SHELF_SLOT_COUNT; i++) {
+      if (!this.shelfSlotOccupant(i)) return i;
+    }
+    return null;
+  }
+
+  freeWallAnchor() {
+    for (let i = 0; i < POSTER_IDS.length; i++) {
+      if (!this.posterOnAnchor(i)) return i;
+    }
+    return null;
+  }
+
+  // Put an item somewhere sensible in the box: its own kind of home first
+  // (shelf slot / wall hook), the box floor as a last resort.
+  _sendHome(id) {
+    if (POSTER_IDS.includes(id)) {
+      const anchor = this.freeWallAnchor();
+      if (anchor !== null) {
+        this.itemLocations[id] = { scene: 'inventory-wall', anchor };
+        return;
+      }
+    } else {
+      const slot = this.freeShelfSlot();
+      if (slot !== null) {
+        this.itemLocations[id] = { scene: 'inventory-shelf', slot };
+        return;
+      }
+    }
+    this.itemLocations[id] = { scene: 'inventory', x: 2, z: 1 };
+  }
+
+  // A stranded item (e.g. left lying in a maze that no longer exists)
+  // finds its way back to the box.
+  returnItemHome(id) {
+    if (this.hasItem(id)) return;
+    this._sendHome(id);
+    this._notify();
+  }
+
+  moveFurniture(id, col, row) {
+    this.furniture[id] = { col, row };
+    this._notify();
   }
 
   itemLocationIn(sceneName) {
@@ -201,13 +297,24 @@ export class GameState {
     this._notify();
   }
 
+  // Ending a run regenerates the maze, so anything left lying in it would
+  // be lost forever — instead it finds its way back to the box. Returns
+  // the ids that were brought home.
   completeRun() {
     this.runsCompleted += 1;
     this.mazeLayer = 1;
     this.objectives = [
       { id: 'escape-1', text: 'Find your way to the end of the maze', done: false },
     ];
+    const returned = [];
+    for (const [id, loc] of Object.entries(this.itemLocations)) {
+      if (loc?.scene === 'maze') {
+        this._sendHome(id);
+        returned.push(id);
+      }
+    }
     this._notify();
+    return returned;
   }
 
   setScene(name) {

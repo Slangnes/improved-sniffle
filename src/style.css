@@ -79,6 +79,23 @@ body.in-box #crosshair {
   background: rgba(122, 106, 69, 0.75);
 }
 
+/* Secondary action hint under the main prompt line (e.g. moving
+   furniture); its own tap target. */
+#prompt-hint {
+  display: block;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px dashed rgba(122, 106, 69, 0.6);
+  font-size: 12px;
+  color: #c9b98a;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+#prompt-hint.hidden {
+  display: none !important;
+}
+
 /* on touch the prompt floats in the view area, above the held items */
 body.touch #prompt {
   bottom: calc(var(--tray-h) + env(safe-area-inset-bottom, 0px) + 88px);
@@ -266,6 +283,12 @@ body.in-box #box-entry {
   pointer-events: none;
 }
 
+/* While a detailed view is open the layer catches clicks: anywhere off
+   the object steps back (there is no close button). */
+#modal-layer:not(.hidden) {
+  pointer-events: auto;
+}
+
 /* Spotlight the focused object; its neighbours fall into shadow. */
 #modal-layer.world-open {
   background: radial-gradient(
@@ -397,21 +420,24 @@ body.in-box #box-entry {
   width: 55%;
 }
 
-#modal-close {
+/* Faint caption naming the step-back gesture. It ignores the pointer, so
+   tapping it is tapping the backdrop — which steps back. */
+#modal-dismiss-hint {
   position: absolute;
-  top: -14px;
-  right: -14px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #241c10;
-  border: 2px solid #7a6a45;
-  font-size: 20px;
-  cursor: pointer;
-  color: #e8dfc8;
-  line-height: 1;
-  z-index: 2;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #c9b98a;
+  opacity: 0.75;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+  white-space: nowrap;
 }
+
+/* The modal layer sits above the control tray, so the caption keeps the
+   truly-bottom spot on touch layouts too — clear of the zoomed object. */
 
 /* slight push-in while inspecting a carried item */
 #viewport.inspect {
@@ -541,6 +567,13 @@ body.touch #touch-controls {
   border-radius: 50%;
   background: rgba(10, 8, 6, 0.4);
   color: #c9b98a;
+}
+
+/* The box diorama never rotates, so there is nothing to turn: inside the
+   box the turn buttons disappear (the pad keeps its shape for the maze). */
+body.in-box .tc-btn.tc-turn {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* the two hand-drop buttons sit side by side, mirroring the hands */
