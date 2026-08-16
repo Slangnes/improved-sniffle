@@ -724,9 +724,11 @@ export class InventoryScene {
       promptItem && POSTER_IDS.includes(promptItem) ? this._nearestFreeAnchor() : null;
     const slot = promptItem ? this._nearestEmptySlot() : null;
 
+    this.promptAction = null;
     if (nearestItem) {
       if (this.gameState.freeHand()) {
         this.prompt = `${this.input.promptFor('interact')} to pick up the ${ITEM_LABELS[nearestItem]}`;
+        this.promptAction = 'interact';
         if (this.input.wasPressed('interact')) {
           const hand = this.gameState.pickUp(nearestItem);
           this.setToast(`Picked up the ${ITEM_LABELS[nearestItem]} in your ${hand} hand.`, 2);
@@ -737,6 +739,7 @@ export class InventoryScene {
       }
     } else if (anchor) {
       this.prompt = `${this.input.promptFor(promptDropAction)} to hang the ${ITEM_LABELS[promptItem]}`;
+      this.promptAction = promptDropAction;
       if (this.input.wasPressed('interact') && nearestSpot && nearestSpot.kind === 'detail') {
         this.audio.playInteract();
         this.onOpenDetail(nearestSpot.id);
@@ -744,9 +747,11 @@ export class InventoryScene {
     } else if (nearestSpot) {
       if (nearestSpot.kind === 'ladder') {
         this.prompt = `${this.input.promptFor('interact')} to climb out`;
+        this.promptAction = 'interact';
         if (this.input.wasPressed('interact')) this.onClimbOut();
       } else {
         this.prompt = `${this.input.promptFor('interact')} to look at the ${nearestSpot.label}`;
+        this.promptAction = 'interact';
         if (this.input.wasPressed('interact')) {
           this.audio.playInteract();
           this.onOpenDetail(nearestSpot.id);
@@ -754,6 +759,7 @@ export class InventoryScene {
       }
     } else if (slot) {
       this.prompt = `${this.input.promptFor(promptDropAction)} to place the ${ITEM_LABELS[promptItem]} on the shelf`;
+      this.promptAction = promptDropAction;
     } else {
       this.prompt = null;
     }

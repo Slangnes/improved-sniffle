@@ -5,26 +5,36 @@ const objectiveLabel = document.getElementById('hud-objective');
 const handLeftEl = document.getElementById('hand-left');
 const handRightEl = document.getElementById('hand-right');
 const promptEl = document.getElementById('prompt');
-const minimapWrap = document.getElementById('minimap-wrap');
-const minimapCanvas = document.getElementById('minimap');
-const compassWrap = document.getElementById('compass-wrap');
-const compassNeedle = document.getElementById('compass-needle');
 
 const SLOT_ICONS = { compass: '⟐', map: '⚑' };
 for (const id of POSTER_IDS) SLOT_ICONS[id] = '☰';
 
 let handTapHandler = null;
 
-// Tapping a hand's held item opens its detailed view.
+// Tapping a hand's held item slides it up for a closer look.
 export function setHandTapHandler(fn) {
   handTapHandler = fn;
 }
 
 for (const el of [handLeftEl, handRightEl]) {
   el.addEventListener('click', () => {
-    if (el.dataset.item && handTapHandler) handTapHandler(el.dataset.item);
+    if (el.dataset.item && handTapHandler) handTapHandler(el.dataset.item, el);
   });
 }
+
+// The prompt line doubles as a button: tapping it performs the action it
+// names. The handler receives the action the current prompt implies.
+let promptTapHandler = null;
+
+export function setPromptTapHandler(fn) {
+  promptTapHandler = fn;
+}
+
+promptEl.addEventListener('click', () => {
+  if (promptEl.dataset.action && promptTapHandler) {
+    promptTapHandler(promptEl.dataset.action);
+  }
+});
 
 export function updateModeAndObjective(sceneName, gameState) {
   modeLabel.textContent = sceneName === 'maze' ? 'The Maze' : 'Inside The Box';
@@ -33,7 +43,9 @@ export function updateModeAndObjective(sceneName, gameState) {
 
 let handsCacheKey = null;
 
-// Each hand's item shows on that hand's side of the screen.
+// Each hand's item shows on that hand's side of the screen. The map and
+// compass are not icons but the items themselves: an awake map shows the
+// live inked minimap, an awake compass its needle, right in the slot.
 export function updateHands(gameState) {
   const activeFor = (id) =>
     id === 'compass' ? gameState.activeCompass : id === 'map' ? gameState.activeMap : false;
@@ -45,6 +57,19 @@ export function updateHands(gameState) {
   const apply = (el, id, sideLabel) => {
     el.classList.toggle('empty', !id);
     el.classList.toggle('active', !!id && activeFor(id));
+    const face = el.querySelector('.hand-face');
+    const showFace = (id === 'map' || id === 'compass') && activeFor(id);
+    el.classList.toggle('has-face', showFace);
+    face.innerHTML = '';
+    if (showFace && id === 'map') {
+      const canvas = document.createElement('canvas');
+      canvas.className = 'hand-minimap';
+      canvas.width = 112;
+      canvas.height = 112;
+      face.appendChild(canvas);
+    } else if (showFace && id === 'compass') {
+      face.innerHTML = '<span class="hand-dial"><span class="hand-needle"></span></span>';
+    }
     el.querySelector('.hand-icon').textContent = id ? SLOT_ICONS[id] || '?' : '';
     el.title = id ? ITEM_LABELS[id] : `${sideLabel} hand (empty)`;
     if (id) el.dataset.item = id;
@@ -54,30 +79,31 @@ export function updateHands(gameState) {
   apply(handRightEl, right, 'Right');
 }
 
-export function setPrompt(text) {
-  if (text) {
-    promptEl.textContent = text;
-    promptEl.classList.remove('hidden');
-  } else {
-    promptEl.classList.add('hidden');
+// Per-frame refresh of the live item faces: redraw the map's corridors,
+// point the compass needle (in the box it only drifts).
+export function updateHandFaces({ mazeScene, inMaze, time }) {
+  const mapCanvas = document.querySelector('.hand-slot .hand-minimap');
+  if (mapCanvas) drawMinimapInto(mapCanvas, mazeScene.minimapData());
+
+  const needle = document.querySelector('.hand-slot .hand-needle');
+  if (needle) {
+    const rad = inMaze ? mazeScene.exitWorldBearingFrom() : Math.sin(time * 0.7) * 0.6;
+    needle.style.transform = `rotate(${(rad * 180) / Math.PI}deg)`;
   }
 }
 
-export function setCompassVisible(visible) {
-  compassWrap.classList.toggle('hidden', !visible);
-}
-
-export function setCompassBearing(radians) {
-  const deg = (radians * 180) / Math.PI;
-  compassNeedle.style.transform = `rotate(${deg}deg)`;
-}
-
-export function setMinimapVisible(visible) {
-  minimapWrap.classList.toggle('hidden', !visible);
-}
-
-export function drawMinimap(data) {
-  drawMinimapInto(minimapCanvas, data);
+export function setPrompt(text, action) {
+  if (text) {
+    promptEl.textContent = text;
+    promptEl.classList.remove('hidden');
+    promptEl.classList.toggle('actionable', !!action);
+    if (action) promptEl.dataset.action = action;
+    else delete promptEl.dataset.action;
+  } else {
+    promptEl.classList.add('hidden');
+    promptEl.classList.remove('actionable');
+    delete promptEl.dataset.action;
+  }
 }
 
 export function drawMinimapInto(canvas, { cells, visited, player, exit, halfExtent }) {

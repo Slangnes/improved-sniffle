@@ -24,12 +24,14 @@ export class DetailView {
     this.content = document.getElementById('modal-content');
     this.closeBtn = document.getElementById('modal-close');
     this.viewport = document.getElementById('viewport');
+    this.box = document.getElementById('modal-box');
 
-    this.state = 'closed'; // closed | zoomIn | open | zoomOut
+    this.state = 'closed'; // closed | zoomIn | open | zoomOut | slideOut
     this.currentId = null;
     this.usesCamera = false;
     this.started = false;
     this.tween = null;
+    this._sourceRect = null;
 
     this.inventoryScene = null;
     this.mazeScene = null;
@@ -103,11 +105,14 @@ export class DetailView {
     this.audio.playModalOpen();
   }
 
-  openItem(id) {
+  // Inspect a carried item. Given the hand slot it was tapped from, the
+  // item slides out of the hand into the center of the screen.
+  openItem(id, fromEl) {
     if (this.isOpen()) return;
     this.currentId = id;
     this.currentPose = null;
     this.usesCamera = false;
+    this._sourceRect = fromEl ? fromEl.getBoundingClientRect() : null;
     this.state = 'open';
     this.viewport.classList.add('inspect');
     this._showPanel();
@@ -121,15 +126,34 @@ export class DetailView {
   }
 
   _beginClose() {
-    this.layer.classList.add('hidden');
-    this.layer.classList.remove('world-open');
     this.viewport.classList.remove('inspect');
     this.audio.playModalClose();
     if (!this.usesCamera) {
-      this.state = 'closed';
-      this.currentId = null;
+      const finish = () => {
+        this.layer.classList.add('hidden');
+        this.layer.classList.remove('world-open');
+        this.box.style.transition = 'none';
+        this.box.style.transform = '';
+        this.box.style.opacity = '';
+        this.state = 'closed';
+        this.currentId = null;
+      };
+      if (this._sourceRect) {
+        // slide the item back down into the hand it came from
+        this.state = 'slideOut';
+        this.box.style.transition =
+          'transform 0.3s cubic-bezier(0.5, 0, 0.75, 0.6), opacity 0.3s ease';
+        this.box.style.transform = this._transformToSource();
+        this.box.style.opacity = '0.3';
+        this._sourceRect = null;
+        setTimeout(finish, 320);
+      } else {
+        finish();
+      }
       return;
     }
+    this.layer.classList.add('hidden');
+    this.layer.classList.remove('world-open');
     const cam = this.inventoryScene.camera;
     const follow = this.inventoryScene.getFollowPose();
     this.state = 'zoomOut';
@@ -145,7 +169,26 @@ export class DetailView {
     };
   }
 
+  // The item's center-screen face stays live while inspected: the map
+  // keeps inking itself, the compass needle keeps pointing (or drifting).
+  _refreshItemFace() {
+    if (this.currentId === 'compass') {
+      const needle = this.content.querySelector('#detail-needle');
+      if (needle) {
+        const rad =
+          this.gameState.scene === 'maze'
+            ? this.mazeScene.exitWorldBearingFrom()
+            : Math.sin((performance.now() / 1000) * 0.7) * 0.6;
+        needle.style.transform = `rotate(${(rad * 180) / Math.PI}deg)`;
+      }
+    } else if (this.currentId === 'map') {
+      const canvas = this.content.querySelector('#detail-map-canvas');
+      if (canvas) drawMinimapInto(canvas, this.mazeScene.minimapData());
+    }
+  }
+
   update(dt) {
+    if (this.state === 'open' && !this.usesCamera) this._refreshItemFace();
     if (this.state !== 'zoomIn' && this.state !== 'zoomOut') return;
     const tw = this.tween;
     tw.t = Math.min(1, tw.t + (dt > 0 ? dt : 1 / 60) / tw.duration);
@@ -171,10 +214,37 @@ export class DetailView {
     }
   }
 
+  // Transform that moves the centered panel onto the source hand slot.
+  _transformToSource() {
+    const s = this._sourceRect;
+    const r = this.box.getBoundingClientRect();
+    const dx = s.left + s.width / 2 - (r.left + r.width / 2);
+    const dy = s.top + s.height / 2 - (r.top + r.height / 2);
+    const scale = Math.max(0.05, s.width / r.width);
+    return `translate(${dx}px, ${dy}px) scale(${scale})`;
+  }
+
+  _slideIn() {
+    const box = this.box;
+    box.style.transition = 'none';
+    if (!this._sourceRect) return;
+    box.style.transform = this._transformToSource();
+    box.style.opacity = '0.35';
+    requestAnimationFrame(() => {
+      box.style.transition =
+        'transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.35s ease';
+      box.style.transform = 'none';
+      box.style.opacity = '1';
+    });
+  }
+
   _showPanel() {
     this.content.innerHTML = '';
     const box = document.getElementById('modal-box');
     box.className = '';
+    box.style.transition = 'none';
+    box.style.transform = '';
+    box.style.opacity = '';
     // The info lives ON the object: size the panel to the zoomed object's
     // projected screen rectangle so the text sits on the actual poster /
     // board / desk paper rather than in a floating card.
@@ -202,6 +272,7 @@ export class DetailView {
     if (POSTER_IDS.includes(this.currentId)) this._posterFooter(this.currentId);
     this.layer.classList.toggle('world-open', !!this.currentPose);
     this.layer.classList.remove('hidden');
+    if (!this.currentPose) this._slideIn();
   }
 
   _fallback() {
@@ -243,15 +314,16 @@ export class DetailView {
       <p>The ladder leads out into the maze. Find the maze's far edge and it
       grows a new ring around itself. Three rings deep, the run is done, and
       a fresh maze awaits.</p>
-      <p>You have two hands, and each can hold one thing — shown at its own
-      side of the screen. Tap a held thing to look at it closely.</p>
+      <p>You have two hands, and each can hold one thing — held at its own
+      side of the screen. An awake map or compass works right there in your
+      hand. Tap a held thing and it rises up for a closer look.</p>
       <ul>
         <li>W A S D &mdash; step around</li>
         <li>Q / E &mdash; turn (in the maze)</li>
-        <li>F &mdash; use what is near</li>
+        <li>F &mdash; use what is near (or tap the prompt itself)</li>
         <li>Z / C &mdash; left / right hand: drop, shelve, or hang</li>
-        <li>I &mdash; look into your box (from the maze)</li>
-        <li>1 / 2 &mdash; compass &amp; map overlays</li>
+        <li>I &mdash; look into your box (or tap the box at your feet)</li>
+        <li>1 / 2 &mdash; wake or stow the compass &amp; map</li>
         <li>M &mdash; mute; arrow keys always work</li>
       </ul>`;
   }
@@ -383,12 +455,10 @@ export class DetailView {
 
   _compassItem() {
     const inMaze = this.gameState.scene === 'maze';
-    const bearing = inMaze ? this.mazeScene.exitWorldBearingFrom() : null;
-    const deg = bearing === null ? -35 : (bearing * 180) / Math.PI;
     this.content.innerHTML = `
       <h2>Compass</h2>
       <div style="width:150px;height:150px;margin:14px auto;border-radius:50%;border:4px solid #6b4a2b;background:radial-gradient(circle,#f3ead0 0%,#ded0a8 100%);position:relative;">
-        <div style="position:absolute;left:50%;top:50%;width:6px;height:58px;margin:-58px 0 0 -3px;background:linear-gradient(to bottom,#b53b2c 0%,#b53b2c 50%,#6b4a2b 50%,#6b4a2b 100%);transform-origin:bottom center;transform:rotate(${deg}deg);"></div>
+        <div id="detail-needle" style="position:absolute;left:50%;top:50%;width:6px;height:58px;margin:-58px 0 0 -3px;background:linear-gradient(to bottom,#b53b2c 0%,#b53b2c 50%,#6b4a2b 50%,#6b4a2b 100%);transform-origin:bottom center;"></div>
         <div style="position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#6b4a2b;"></div>
       </div>
       <p>${
@@ -396,12 +466,14 @@ export class DetailView {
           ? 'The needle strains toward the way out of the maze.'
           : 'In here the needle only drifts. It wants the maze.'
       }</p>`;
+    this._refreshItemFace();
   }
 
   _mapItem() {
     const wrap = document.createElement('div');
     wrap.innerHTML = `<h2>Map</h2>`;
     const canvas = document.createElement('canvas');
+    canvas.id = 'detail-map-canvas';
     canvas.width = 360;
     canvas.height = 360;
     canvas.style.cssText = 'display:block;margin:12px auto;border:3px solid #6b4a2b;background:#efe6c8;max-width:100%;';

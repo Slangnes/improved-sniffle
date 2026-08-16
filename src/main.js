@@ -83,10 +83,24 @@ window.addEventListener('resize', () => {
   mazeScene.onResize();
 });
 
-HUD.setHandTapHandler((id) => {
+HUD.setHandTapHandler((id, sourceEl) => {
   if (transition.playing) return;
-  detailView.openItem(id);
+  detailView.openItem(id, sourceEl);
 });
+
+// Tapping the prompt line performs the action it names, and tapping the
+// cardboard box at the bottom of the maze view looks into it. Both feed
+// through the same synthesized key events as the touch buttons, so they
+// follow rebinds and reach the scenes like any other press.
+function pressAction(action) {
+  if (transition.playing || detailView.isOpen()) return;
+  const code = input.bindings[action];
+  window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+  window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+}
+
+HUD.setPromptTapHandler(pressAction);
+document.getElementById('box-entry').addEventListener('click', () => pressAction('inventory'));
 
 function frame() {
   requestAnimationFrame(frame);
@@ -105,19 +119,15 @@ function frame() {
 
   HUD.updateModeAndObjective(gameState.scene, gameState);
   HUD.updateHands(gameState);
-  HUD.setPrompt(current.toastMessage || current.prompt);
-
-  const compassOn = gameState.hasItem('compass') && gameState.activeCompass;
-  HUD.setCompassVisible(compassOn && current === mazeScene);
-  if (compassOn && current === mazeScene) {
-    HUD.setCompassBearing(mazeScene.exitWorldBearingFrom());
-  }
-
-  const mapOn = gameState.hasItem('map') && gameState.activeMap;
-  HUD.setMinimapVisible(mapOn && current === mazeScene);
-  if (mapOn && current === mazeScene) {
-    HUD.drawMinimap(mazeScene.minimapData());
-  }
+  HUD.setPrompt(
+    current.toastMessage || current.prompt,
+    current.toastMessage ? null : current.promptAction
+  );
+  HUD.updateHandFaces({
+    mazeScene,
+    inMaze: current === mazeScene,
+    time: performance.now() / 1000,
+  });
 }
 
 window.addEventListener('keydown', (e) => {

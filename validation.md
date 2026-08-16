@@ -43,14 +43,18 @@ bump. Climbing into the box always lands you at the foot of the ladder.
 
 The player has a **left hand and a right hand**; each holds one item. The
 right hand fills first. Each hand's item shows on its own side of the
-screen (bottom-left / bottom-right) and is tapped to inspect. Z drops,
-shelves, or hangs the left hand's item; C the right hand's. On touch, the
-two hand DROP buttons sit side by side (L·DROP left, R·DROP right,
-mirroring the hands) at the top of the action cluster, above USE and BOX.
+screen (bottom-left / bottom-right). An awake map or compass works right
+there in the hand: the map slot shows the live inked minimap, the compass
+slot its live needle. Tapping a held item slides it out of the hand into
+the center of the screen for a closer look (and back when dismissed).
+Z drops, shelves, or hangs the left hand's item; C the right hand's.
+On touch, the two hand DROP buttons sit side by side (L·DROP left,
+R·DROP right, mirroring the hands); context actions have no buttons —
+the prompt line itself is tappable and performs the action it names.
 The movement pad is a single crawler rose with the turn buttons in its
 top corners (⟲ between ▲ and ◀, ⟳ between ▲ and ▶), identical in both
-scenes; a left-handed setting swaps the movement pad and the action
-cluster between sides.
+scenes; a left-handed setting swaps the movement pad and the drop pair
+between sides.
 
 ## Boot: the title poster
 
@@ -60,13 +64,14 @@ cluster between sides.
   (dark panel, no modal card). It cannot be dismissed without BEGIN.
 - **V2 — BEGIN zooms out into the diorama.** The camera pulls back from
   the poster and settles at the fixed whole-room framing. Audio starts.
-  Inside the box there is **no BOX button and no shortcut out** — the
-  ladder is the only exit. Pressing W steps exactly one tile up the screen
+  Inside the box there is **no box at your feet and no shortcut out** —
+  the ladder is the only exit. Pressing W steps exactly one tile up the screen
   (north), and the ArrowDown alias steps back.
 
 ## The box: info lives on the posters
 
-Interacting (F / USE) with a poster, the bulletin board, or the desk flies
+Interacting (F, or tapping the prompt) with a poster, the bulletin board,
+or the desk flies
 the camera onto the object; its readable content appears **on the object's
 own surface** (the panel is sized to the zoomed poster/board/paper — no
 floating modal card). Closing flies the camera back out.
@@ -99,15 +104,16 @@ floating modal card). Closing flies the camera back out.
   the right hand's item first; that hand's key snaps it onto the slot.
   Once compass and map are both back on slots, the tidy objective
   completes.
-- **V11 — Item detailed views.** Tapping a hand's item opens it up close:
-  the Map draws a large chart of explored maze cells, the Compass shows
-  its face.
+- **V11 — Item detailed views.** Tapping a hand's item slides it from the
+  hand slot into the center of the screen: the Map draws a large chart of
+  explored maze cells, the Compass shows its face — both stay live while
+  inspected.
 - **V12 — Free drop.** A hand's drop key away from slots and hooks places
   its item on the floor beside the player.
 
 ## Transition
 
-- **V13 — The ladder is the way out.** USE at the ladder plays the
+- **V13 — The ladder is the way out.** Interacting at the ladder plays the
   in-engine flatten transition (screen dips to black; the maze side
   dolly-zooms between flat telephoto and normal perspective) and lands in
   the first-person maze with the maze music.
@@ -118,8 +124,9 @@ floating modal card). Closing flies the camera back out.
   ↑/↓) step one cell along the facing, A/D strafe one cell sideways
   without changing facing, Q/E (and ←/→) turn exactly 90°, and stepping
   into a wall moves zero cells.
-- **V15 — Compass and map overlays** show while carried and active; keys
-  1 / 2 toggle them.
+- **V15 — The held compass and map are live in the hands.** While awake,
+  the map's hand slot shows the inked minimap and the compass slot its
+  needle; keys 1 / 2 stow each back to a plain glyph and wake it again.
 - **V16 — Talisman-style nested layers.** Exit extends the maze 1 → 2 → 3
   (half-extent 3 → 7 → 11), then a completed run resets to a fresh
   layer 1 and increments the run counter. *(Validated logic-level by
@@ -127,6 +134,8 @@ floating modal card). Closing flies the camera back out.
 - **V17 — Per-hand drops in the maze.** A hand's key drops its item at the
   player (posters lie as scrolls); F picks back up into a free hand.
 - **V18 — I returns to the box** (from the maze only), with the box music.
+  The cardboard box also sits at the player's feet, bottom-center of the
+  maze view; clicking or tapping it is the same look inside.
 
 ## Audio & persistence
 
@@ -138,6 +147,7 @@ floating modal card). Closing flies the camera back out.
 ## Touch
 
 - **V21 — Touch controls drive both scenes.** The D-pad steps and strafes,
-  its corner ⟲ button turns, USE interacts (including climbing the ladder —
-  the BOX button exists only in the maze), and holding ▲ in the maze steps
-  one cell. Buttons route through current bindings.
+  its corner ⟲ button turns, tapping the prompt line performs the action
+  it names (including climbing the ladder — the box at your feet exists
+  only in the maze), and holding ▲ in the maze steps one cell. Buttons
+  route through current bindings.

@@ -58,6 +58,20 @@ body.in-box #crosshair {
   letter-spacing: 0.5px;
   pointer-events: none;
   z-index: 20;
+  max-width: 86vw;
+  text-align: center;
+}
+
+/* The prompt is itself the button for the action it names. */
+#prompt.actionable {
+  pointer-events: auto;
+  cursor: pointer;
+  border-color: #e8c96a;
+  box-shadow: 0 0 8px #e8c96a33;
+}
+
+#prompt.actionable:active {
+  background: rgba(122, 106, 69, 0.75);
 }
 
 #hud {
@@ -90,17 +104,18 @@ body.in-box #crosshair {
 .hand-slot {
   position: fixed;
   bottom: 16px;
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   border: 1px solid #7a6a45;
   border-radius: 10px;
   background: rgba(10, 8, 6, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 24px;
   z-index: 22;
   cursor: pointer;
+  overflow: hidden;
 }
 
 #hand-left {
@@ -130,48 +145,111 @@ body.in-box #crosshair {
   box-shadow: 0 0 6px #e8c96a55;
 }
 
-/* on touch layouts the control clusters own the bottom corners; the
-   two-row pad is short enough that the hands sit just above it */
-body.touch .hand-slot {
-  bottom: calc(186px + env(safe-area-inset-bottom, 0px));
+/* An awake map or compass IS the item in the hand: its live face fills
+   the slot and replaces the plain glyph. */
+.hand-slot .hand-face {
+  display: none;
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
 }
 
-#minimap-wrap {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 20;
-  border: 2px solid #7a6a45;
-  background: rgba(5, 5, 10, 0.75);
-  padding: 4px;
+.hand-slot.has-face .hand-face {
+  display: block;
 }
 
-#compass-wrap {
-  position: fixed;
-  bottom: 12px;
-  right: 50%;
-  transform: translateX(50%);
-  z-index: 20;
+.hand-slot.has-face .hand-icon {
+  display: none;
 }
 
-#compass-dial {
-  width: 70px;
-  height: 70px;
+.hand-slot.has-face .hand-tag {
+  z-index: 1;
+  text-shadow: 0 1px 2px #000;
+}
+
+.hand-face .hand-minimap {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+}
+
+.hand-face .hand-dial {
+  display: block;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  border: 2px solid #7a6a45;
-  background: radial-gradient(circle, #14110c 0%, #05050a 100%);
+  border: 2px solid #6b4a2b;
+  background: radial-gradient(circle, #f3ead0 0%, #ded0a8 100%);
   position: relative;
 }
 
-#compass-needle {
+.hand-face .hand-needle {
   position: absolute;
   left: 50%;
   top: 50%;
   width: 3px;
-  height: 26px;
-  margin: -26px 0 0 -1.5px;
-  background: linear-gradient(to bottom, #d84b3a 0%, #d84b3a 50%, #cfc7ad 50%, #cfc7ad 100%);
+  height: 22px;
+  margin: -22px 0 0 -1.5px;
+  background: linear-gradient(to bottom, #b53b2c 0%, #b53b2c 50%, #6b4a2b 50%, #6b4a2b 100%);
   transform-origin: bottom center;
+}
+
+/* On touch layouts the control clusters own the bottom corners, so each
+   hand rides just above its side's cluster: the movement pad is taller
+   than the drop-button pair, and the left-handed swap mirrors both. */
+body.touch #hand-left {
+  bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+}
+
+body.touch #hand-right {
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+}
+
+body.touch.left-handed #hand-left {
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+}
+
+body.touch.left-handed #hand-right {
+  bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------- the box at your feet ---------- */
+
+/* In the maze your cardboard box sits at the bottom of the view;
+   clicking it is looking into it. */
+#box-entry {
+  position: fixed;
+  left: 50%;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: 64px;
+  height: 64px;
+  padding: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 21;
+  filter: drop-shadow(0 3px 6px #000);
+}
+
+#box-entry svg {
+  width: 100%;
+  height: 100%;
+}
+
+#box-entry:active {
+  transform: translateX(-50%) scale(0.92);
+}
+
+/* on touch the bottom corners belong to the control clusters, so the
+   box floats just above them, clear of every thumb zone */
+body.touch #box-entry {
+  bottom: calc(192px + env(safe-area-inset-bottom, 0px));
+}
+
+/* only in the maze — inside the box, the ladder is the way back */
+body.in-box #box-entry {
+  display: none;
 }
 
 .hidden {
@@ -464,18 +542,7 @@ body.touch #touch-controls {
   letter-spacing: 1px;
 }
 
-/* the BOX button only exists in the maze — the ladder is the way out */
-body.in-box .tc-box {
-  display: none;
-}
-
 @media (max-width: 700px) {
-  #minimap-wrap canvas {
-    width: 34vw;
-    max-width: 180px;
-    height: auto;
-  }
-
   #hud-objective {
     max-width: 60vw;
   }
@@ -504,7 +571,17 @@ body.in-box .tc-box {
     width: 68px;
   }
 
-  body.touch .hand-slot {
+  body.touch #hand-left,
+  body.touch.left-handed #hand-right {
+    bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.touch #hand-right,
+  body.touch.left-handed #hand-left {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.touch #box-entry {
     bottom: calc(170px + env(safe-area-inset-bottom, 0px));
   }
 }

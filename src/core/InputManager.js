@@ -29,16 +29,16 @@ const ACTION_LABELS = {
   dropLeft: 'Left Hand: Drop / Place',
   dropRight: 'Right Hand: Drop / Place',
   inventory: 'Look Into Box (in maze)',
-  slot1: 'Toggle Compass Overlay',
-  slot2: 'Toggle Map Overlay',
+  slot1: 'Wake / Stow the Compass',
+  slot2: 'Wake / Stow the Map',
   mute: 'Toggle Mute',
 };
 
+// Actions with a named on-screen button. Anything else (interact, the
+// box) is triggered by tapping the prompt line itself, or the object.
 const TOUCH_NAMES = {
-  interact: 'USE',
   dropLeft: 'L·DROP',
   dropRight: 'R·DROP',
-  inventory: 'BOX',
   turnLeft: '⟲',
   turnRight: '⟳',
 };
@@ -137,11 +137,12 @@ export class InputManager {
     return code.replace('Key', '').replace('Digit', '').replace('Arrow', '');
   }
 
-  // Prompt prefix for an action: names the on-screen button on touch
-  // layouts, the bound key otherwise.
+  // Prompt prefix for an action: on touch layouts it names the on-screen
+  // button, or invites tapping the prompt itself when the action has no
+  // button of its own; otherwise it names the bound key.
   promptFor(action) {
-    if (document.body.classList.contains('touch') && TOUCH_NAMES[action]) {
-      return `Tap ${TOUCH_NAMES[action]}`;
+    if (document.body.classList.contains('touch')) {
+      return TOUCH_NAMES[action] ? `Tap ${TOUCH_NAMES[action]}` : 'Tap here';
     }
     return `Press ${this.keyLabel(action)}`;
   }

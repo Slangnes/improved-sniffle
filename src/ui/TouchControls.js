@@ -4,13 +4,14 @@
 // re-routes the touch buttons too.
 //
 // One thumb per cluster: the left side of the screen carries the movement
-// pad, the right side the action cluster. The pad is a single crawler
-// rose — turn buttons sit in the top corners, each between the forward
-// key and its strafe key (⟲ between ▲ and ◀, ⟳ between ▲ and ▶) — and
-// drives every scene the same way. The action cluster pairs the two hand
-// drop buttons side by side (L·DROP left, R·DROP right, mirroring the
-// hands) above USE and BOX. The left-handed setting swaps the two
-// clusters between the sides.
+// pad, the right side the paired hand-drop buttons (L·DROP left, R·DROP
+// right, mirroring the hands). The pad is a single crawler rose — turn
+// buttons sit in the top corners, each between the forward key and its
+// strafe key (⟲ between ▲ and ◀, ⟳ between ▲ and ▶) — and drives every
+// scene the same way. Context actions have no buttons here: tapping the
+// prompt line performs what it names, and tapping the cardboard box at
+// the bottom of the maze view looks into it. The left-handed setting
+// swaps the two clusters between the sides.
 
 export class TouchControls {
   constructor({ input }) {
@@ -41,8 +42,6 @@ export class TouchControls {
             <button type="button" class="tc-btn tc-wide" data-action="dropLeft">L·DROP</button>
             <button type="button" class="tc-btn tc-wide" data-action="dropRight">R·DROP</button>
           </div>
-          <button type="button" class="tc-btn tc-wide" data-action="interact">USE</button>
-          <button type="button" class="tc-btn tc-wide tc-box" data-action="inventory">BOX</button>
         </div>
       </div>`;
     document.body.appendChild(this.root);
@@ -70,8 +69,7 @@ export class TouchControls {
     this.applyHandedness(localStorage.getItem('box-and-bones:leftHanded') === '1');
   }
 
-  // Swap the movement pad and the action cluster (drops/use/box) between
-  // the two sides.
+  // Swap the movement pad and the drop-button pair between the two sides.
   applyHandedness(leftHanded) {
     const leftSide = this.root.querySelector('#tc-left');
     const rightSide = this.root.querySelector('#tc-right');

@@ -192,7 +192,7 @@ test('validation.md contract', async ({ page }) => {
     expect(Math.abs(cam.zoom - cam.roomZoom)).toBeLessThan(0.05);
     expect(cam.ctxState).toBe('running');
     expect(cam.track).toBe('box');
-    await expect(page.locator('.tc-box')).toBeHidden();
+    await expect(page.locator('#box-entry')).toBeHidden();
 
     // Screen-aligned movement: W steps one tile north (up on screen).
     const t0 = await boxTile(page);
@@ -389,7 +389,7 @@ test('validation.md contract', async ({ page }) => {
     );
     expect(await page.evaluate(() => window.__sawFade)).toBe(true);
     expect(await page.evaluate(() => window.__box.audio._currentTrack)).toBe('maze');
-    await expect(page.locator('.tc-box')).toBeVisible();
+    await expect(page.locator('#box-entry')).toBeVisible();
   });
 
   await test.step('V14: maze steps, strafes, turns, bumps — arrows also work', async () => {
@@ -461,17 +461,19 @@ test('validation.md contract', async ({ page }) => {
     expect({ x: afterBump.x, y: afterBump.y }).toEqual({ x: beforeBump.x, y: beforeBump.y });
   });
 
-  await test.step('V15: compass and minimap overlays toggle with 1/2', async () => {
-    await expect(page.locator('#compass-wrap')).toBeVisible();
-    await expect(page.locator('#minimap-wrap')).toBeVisible();
+  await test.step('V15: held compass and map are live in the hands; 1/2 stow and wake', async () => {
+    const mapFace = page.locator('.hand-slot[data-item="map"] .hand-minimap');
+    const compassFace = page.locator('.hand-slot[data-item="compass"] .hand-dial');
+    await expect(mapFace).toBeVisible();
+    await expect(compassFace).toBeVisible();
     await page.keyboard.press('2');
-    await expect(page.locator('#minimap-wrap')).toBeHidden();
+    await expect(mapFace).toBeHidden();
     await page.keyboard.press('2');
-    await expect(page.locator('#minimap-wrap')).toBeVisible();
+    await expect(mapFace).toBeVisible();
     await page.keyboard.press('1');
-    await expect(page.locator('#compass-wrap')).toBeHidden();
+    await expect(compassFace).toBeHidden();
     await page.keyboard.press('1');
-    await expect(page.locator('#compass-wrap')).toBeVisible();
+    await expect(compassFace).toBeVisible();
   });
 
   await test.step('V16: exits nest new layers, then a run resets', async () => {
@@ -543,7 +545,7 @@ test('validation.md contract', async ({ page }) => {
 
   await test.step('V21: touch controls drive both scenes; BOX only in the maze', async () => {
     await expect(page.locator('#touch-controls')).toBeVisible();
-    await expect(page.locator('.tc-box')).toBeHidden(); // in the box
+    await expect(page.locator('#box-entry')).toBeHidden(); // in the box
 
     // Hold ▲: one grid step in the box.
     const up = page.locator('#tc-dpad [data-action="moveForward"]');
@@ -582,12 +584,11 @@ test('validation.md contract', async ({ page }) => {
       .poll(() => page.evaluate(() => window.__box.inventoryScene.facing), { timeout: 5000 })
       .toBe((before.facing + 3) % 4);
 
-    // Climb out with the USE button at the ladder, then step in the maze.
+    // Climb out by tapping the prompt line at the ladder, then step in the maze.
     await navigate(page, [[3, 3], [3, 5]]);
     await expect.poll(() => boxPrompt(page), { timeout: 10000 }).toContain('climb out');
-    const useBtn = page.locator('[data-action="interact"]');
-    await useBtn.dispatchEvent('pointerdown');
-    await useBtn.dispatchEvent('pointerup');
+    await expect(page.locator('#prompt')).toHaveClass(/actionable/);
+    await page.locator('#prompt').click();
     await page.waitForFunction(
       () => window.__box.gameState.scene === 'maze' && !window.__box.transition.playing,
       null,
@@ -608,5 +609,15 @@ test('validation.md contract', async ({ page }) => {
     expect(
       Math.abs(cellAfter.x - cellBefore.x) + Math.abs(cellAfter.y - cellBefore.y)
     ).toBe(1);
+
+    // Tapping the cardboard box at your feet looks back into the box.
+    await expect(page.locator('#box-entry')).toBeVisible();
+    await page.locator('#box-entry').click();
+    await page.waitForFunction(
+      () => window.__box.gameState.scene === 'inventory' && !window.__box.transition.playing,
+      null,
+      { timeout: 30000 }
+    );
+    await expect(page.locator('#box-entry')).toBeHidden();
   });
 });

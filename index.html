@@ -22,21 +22,19 @@
     </div>
 
     <div id="hand-left" class="hand-slot empty">
-      <span class="hand-tag">L</span><span class="hand-icon"></span>
+      <span class="hand-tag">L</span><span class="hand-icon"></span><span class="hand-face"></span>
     </div>
     <div id="hand-right" class="hand-slot empty">
-      <span class="hand-tag">R</span><span class="hand-icon"></span>
+      <span class="hand-tag">R</span><span class="hand-icon"></span><span class="hand-face"></span>
     </div>
 
-    <div id="minimap-wrap" class="hidden">
-      <canvas id="minimap" width="180" height="180"></canvas>
-    </div>
-
-    <div id="compass-wrap" class="hidden">
-      <div id="compass-dial">
-        <div id="compass-needle"></div>
-      </div>
-    </div>
+    <button id="box-entry" type="button" title="Look into your box" aria-label="Look into your box">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M4 11 16 5l12 6-12 6z" fill="#e8c96a"/>
+        <path d="M4 11v12l12 6V17z" fill="#c9a94f"/>
+        <path d="M28 11v12l-12 6V17z" fill="#a9873a"/>
+      </svg>
+    </button>
 
     <div id="modal-layer" class="hidden">
       <div id="modal-box">
