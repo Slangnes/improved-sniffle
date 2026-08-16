@@ -133,7 +133,7 @@ body.in-box #crosshair {
 /* on touch layouts the control clusters own the bottom corners; the
    two-row pad is short enough that the hands sit just above it */
 body.touch .hand-slot {
-  bottom: calc(204px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(186px + env(safe-area-inset-bottom, 0px));
 }
 
 #minimap-wrap {
@@ -452,6 +452,18 @@ body.touch #touch-controls {
   color: #c9b98a;
 }
 
+/* the two hand-drop buttons sit side by side, mirroring the hands */
+#tc-drops {
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#tc-drops .tc-btn {
+  width: 76px;
+  letter-spacing: 1px;
+}
+
 /* the BOX button only exists in the maze — the ladder is the way out */
 body.in-box .tc-box {
   display: none;
@@ -488,7 +500,11 @@ body.in-box .tc-box {
     gap: 8px;
   }
 
+  #tc-drops .tc-btn {
+    width: 68px;
+  }
+
   body.touch .hand-slot {
-    bottom: calc(182px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(170px + env(safe-area-inset-bottom, 0px));
   }
 }

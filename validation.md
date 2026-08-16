@@ -44,12 +44,13 @@ bump. Climbing into the box always lands you at the foot of the ladder.
 The player has a **left hand and a right hand**; each holds one item. The
 right hand fills first. Each hand's item shows on its own side of the
 screen (bottom-left / bottom-right) and is tapped to inspect. Z drops,
-shelves, or hangs the left hand's item; C the right hand's. On touch, each
-hand has its own DROP button on its own side of the screen. The movement
-pad is a single crawler rose with the turn buttons in its top corners
-(⟲ between ▲ and ◀, ⟳ between ▲ and ▶), identical in both scenes; a
-left-handed setting swaps the movement pad and the use/box cluster
-between sides (the hand buttons stay on their hands' sides).
+shelves, or hangs the left hand's item; C the right hand's. On touch, the
+two hand DROP buttons sit side by side (L·DROP left, R·DROP right,
+mirroring the hands) at the top of the action cluster, above USE and BOX.
+The movement pad is a single crawler rose with the turn buttons in its
+top corners (⟲ between ▲ and ◀, ⟳ between ▲ and ▶), identical in both
+scenes; a left-handed setting swaps the movement pad and the action
+cluster between sides.
 
 ## Boot: the title poster
 
